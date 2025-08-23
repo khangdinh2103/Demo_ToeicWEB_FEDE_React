@@ -9,6 +9,9 @@ import PlacementTestPage from './pages/PlacementTestPage'
 import DashboardPage from './pages/DashboardPage'
 import CourseDetailPage from './pages/CourseDetailPage'
 import LearningPathPage from './pages/LearningPathPage'
+import AdminPage from './pages/AdminPage'
+import TestManagerPage from './pages/TestManagerPage'
+import TestEditorPage from './pages/TestEditorPage'
 import './index.css'
 
 function App() {
@@ -24,6 +27,9 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/placement-test" element={<PlacementTestPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/tests" element={<TestManagerPage />} />
+          <Route path="/tests/edit/:id" element={<TestEditorPage />} />
           <Route path="/learning-path" element={<LearningPathPage />} />
           <Route path="/courses/:id" element={<CourseDetailPage />} />
         </Routes>

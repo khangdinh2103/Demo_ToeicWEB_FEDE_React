@@ -73,6 +73,12 @@ export default function DashboardPage() {
                 <MessageCircle className="h-4 w-4 mr-2" />
                 AI Chat
               </Button>
+              <Link to="/admin">
+                <Button variant="ghost" size="sm">Admin</Button>
+              </Link>
+              <Link to="/tests">
+                <Button variant="ghost" size="sm">Quản lý Đề</Button>
+              </Link>
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 text-white" />
