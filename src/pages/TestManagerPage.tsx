@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Edit, Trash2, BookOpen, Image, Music } from 'lucide-react'
+import { Plus, Edit, Trash2, BookOpen, Image, Music, ToggleLeft, ToggleRight } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/card'
@@ -85,10 +85,16 @@ export default function TestManagerPage() {
   persist(next)
   }
 
+  const toggleTestStatus = (id: number) => {
+    const updated = tests.map(t => t.id === id ? { ...t, status: (t.status === 'active' ? 'pending' : 'active') as 'active' | 'pending' } : t)
+    persist(updated)
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-  <AdminMenu />
-  <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gray-50 flex">
+      <AdminMenu />
+      <div className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">Quản lý Đề</h1>
@@ -132,8 +138,8 @@ export default function TestManagerPage() {
             <ScrollArea className="h-[60vh]">
               <div className="grid gap-4">
                 {tests.filter(t => t.status === 'active').map(t => (
-                  <Card key={t.id} onClick={() => navigate(`/tests/edit/${t.id}`)} className="cursor-pointer">
-                    <CardHeader>
+                  <Card key={t.id} className="cursor-pointer">
+                    <CardHeader onClick={() => navigate(`/tests/edit/${t.id}`)}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <BookOpen className="w-6 h-6 text-blue-600" />
@@ -144,8 +150,39 @@ export default function TestManagerPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className="bg-green-100 text-green-800">{t.questions} câu</Badge>
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(t)}><Edit className="w-4 h-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteTest(t.id)}><Trash2 className="w-4 h-4" /></Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-yellow-600 hover:text-yellow-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTestStatus(t.id);
+                            }}
+                            title="Chuyển thành chưa xuất bản"
+                          >
+                            <ToggleLeft className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(t);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-red-500 hover:text-red-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTest(t.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardHeader>
@@ -160,8 +197,8 @@ export default function TestManagerPage() {
             <ScrollArea className="h-[60vh]">
               <div className="grid gap-4">
                 {tests.filter(t => t.status === 'pending').map(t => (
-                  <Card key={t.id} onClick={() => navigate(`/tests/edit/${t.id}`)} className="cursor-pointer">
-                    <CardHeader>
+                  <Card key={t.id} className="cursor-pointer">
+                    <CardHeader onClick={() => navigate(`/tests/edit/${t.id}`)}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <BookOpen className="w-6 h-6 text-yellow-600" />
@@ -172,8 +209,39 @@ export default function TestManagerPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge className="bg-yellow-100 text-yellow-800">{t.questions} câu</Badge>
-                          <Button size="sm" variant="ghost" onClick={() => openEdit(t)}><Edit className="w-4 h-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => deleteTest(t.id)}><Trash2 className="w-4 h-4" /></Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-green-600 hover:text-green-800"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTestStatus(t.id);
+                            }}
+                            title="Chuyển thành hoạt động"
+                          >
+                            <ToggleRight className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(t);
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="text-red-500 hover:text-red-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteTest(t.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
                       </div>
                     </CardHeader>
@@ -236,6 +304,7 @@ export default function TestManagerPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
     </div>
   )

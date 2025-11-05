@@ -3,25 +3,94 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { BookOpen, Mail, Lock, Eye, EyeOff } from "lucide-react"
+import { BookOpen, Phone, Lock, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
 import { Link } from "react-router-dom"
+import { authApi } from "@/api/authApi"
+import { useAuth } from "@/contexts/AuthContext"
 
 export default function LoginPage() {
+  const navigate = useNavigate()
+  const { setUser } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [formData, setFormData] = useState({
-    email: "",
+    phone: "",
     password: "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle login logic here
-    console.log("Login attempt:", formData)
+    setIsLoading(true)
+    setError("")
+
+    try {
+      let response;
+
+      // Thử đăng nhập với Admin API trước
+      try {
+        response = await authApi.adminLogin({
+          phone: formData.phone,
+          password: formData.password,
+        })
+        console.log('✅ Admin API response:', response)
+      } catch (adminError: any) {
+        // Nếu không phải admin, thử đăng nhập Student
+        console.log('Không phải admin, thử student API...')
+        response = await authApi.login({
+          phone: formData.phone,
+          password: formData.password,
+        })
+        console.log('✅ Student API response:', response)
+      }
+
+      // Kiểm tra response có hợp lệ không
+      if (!response) {
+        throw new Error('Không nhận được phản hồi từ server')
+      }
+
+      console.log('📦 Response data:', {
+        '_id': response._id,
+        'id': (response as any).id,
+        'role': response.role,
+        'name': response.name,
+        'full response': response
+      });
+
+      // Cập nhật user trong context (hỗ trợ cả _id và id)
+      const userId = response._id || (response as any).id;
+      setUser({
+        id: userId,
+        name: response.name,
+        phone: response.phone,
+        role: response.role,
+        avatar: response.avatar,
+      })
+
+      // Chuyển hướng dựa trên role (hỗ trợ cả 'admin' và 'ADMIN')
+      const userRole = response.role?.toLowerCase() || 'student';
+      console.log('🔍 User role detected:', userRole);
+      
+      if (userRole === 'admin') {
+        console.log('✅ Admin detected! Redirecting to /admin')
+        navigate("/admin")
+      } else {
+        console.log('✅ Student/User detected! Redirecting to /')
+        navigate("/")
+      }
+    } catch (err: any) {
+      console.error("Login error:", err)
+      const errorMessage = err.response?.data?.message || "Đăng nhập thất bại. Vui lòng thử lại."
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -43,19 +112,23 @@ export default function LoginPage() {
           <CardContent className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="phone">Số điện thoại</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
+                    id="phone"
+                    type="tel"
+                    placeholder="0123456789"
                     className="pl-10"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    disabled={isLoading}
                     required
                   />
                 </div>
+                <p className="text-xs text-gray-500">
+                  Nhập số điện thoại đã đăng ký
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -69,6 +142,7 @@ export default function LoginPage() {
                     className="pl-10 pr-10"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    disabled={isLoading}
                     required
                   />
                   <button
@@ -80,6 +154,13 @@ export default function LoginPage() {
                   </button>
                 </div>
               </div>
+
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
@@ -93,8 +174,15 @@ export default function LoginPage() {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full">
-                Đăng nhập
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang đăng nhập...
+                  </>
+                ) : (
+                  "Đăng nhập"
+                )}
               </Button>
             </form>
 

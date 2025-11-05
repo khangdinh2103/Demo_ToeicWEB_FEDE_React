@@ -3,32 +3,71 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BookOpen, Mail, Lock, Eye, EyeOff, User, Phone } from "lucide-react"
+import { BookOpen, Lock, Eye, EyeOff, User, Phone, Loader2, XCircle } from "lucide-react"
 import { Link } from "react-router-dom"
+import { authApi } from "@/api/authApi"
 
 export default function RegisterPage() {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
   const [formData, setFormData] = useState({
     fullName: "",
-    email: "",
     phone: "",
     password: "",
     confirmPassword: "",
-    targetScore: "",
-    currentLevel: "",
+    gender: "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle registration logic here
-    console.log("Registration attempt:", formData)
+
+    // Validate
+    if (formData.password !== formData.confirmPassword) {
+      setError("Mật khẩu xác nhận không khớp")
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("Mật khẩu phải có ít nhất 6 ký tự")
+      return
+    }
+
+    if (!formData.gender) {
+      setError("Vui lòng chọn giới tính")
+      return
+    }
+
+    setIsLoading(true)
+    setError("")
+
+    try {
+      // Gửi số điện thoại nguyên bản mà user nhập, không format
+      await authApi.register({
+        phone: formData.phone,
+        password: formData.password,
+        name: formData.fullName,
+        gender: formData.gender as 'male' | 'female' | 'other',
+      })
+
+      // Chuyển sang trang xác thực OTP
+      navigate("/verify-otp", { state: { phone: formData.phone } })
+    } catch (err: any) {
+      console.error("Register error:", err)
+      const errorMessage = err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại."
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -68,22 +107,6 @@ export default function RegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    className="pl-10"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="phone">Số điện thoại</Label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -94,43 +117,30 @@ export default function RegisterPage() {
                     className="pl-10"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    disabled={isLoading}
                     required
                   />
                 </div>
+                <p className="text-xs text-gray-500">
+                  Số điện thoại để nhận mã OTP
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="currentLevel">Trình độ hiện tại</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, currentLevel: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn trình độ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="beginner">Mới bắt đầu</SelectItem>
-                      <SelectItem value="elementary">Cơ bản</SelectItem>
-                      <SelectItem value="intermediate">Trung cấp</SelectItem>
-                      <SelectItem value="advanced">Nâng cao</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="targetScore">Mục tiêu điểm</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, targetScore: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn mục tiêu" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="450">450 điểm</SelectItem>
-                      <SelectItem value="550">550 điểm</SelectItem>
-                      <SelectItem value="650">650 điểm</SelectItem>
-                      <SelectItem value="750">750 điểm</SelectItem>
-                      <SelectItem value="850">850 điểm</SelectItem>
-                      <SelectItem value="900">900+ điểm</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="gender">Giới tính</Label>
+                <Select 
+                  onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn giới tính" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Nam</SelectItem>
+                    <SelectItem value="female">Nữ</SelectItem>
+                    <SelectItem value="other">Khác</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -179,8 +189,15 @@ export default function RegisterPage() {
                 </div>
               </div>
 
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-600">{error}</p>
+                </div>
+              )}
+
               <div className="flex items-center space-x-2">
-                <input id="terms" type="checkbox" className="rounded border-gray-300" required />
+                <input id="terms" type="checkbox" className="rounded border-gray-300" required disabled={isLoading} />
                 <Label htmlFor="terms" className="text-sm">
                   Tôi đồng ý với{" "}
                   <Link to="/terms" className="text-blue-600 hover:underline">
@@ -193,8 +210,15 @@ export default function RegisterPage() {
                 </Label>
               </div>
 
-              <Button type="submit" className="w-full">
-                Đăng ký
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Đang đăng ký...
+                  </>
+                ) : (
+                  "Đăng ký"
+                )}
               </Button>
             </form>
 
