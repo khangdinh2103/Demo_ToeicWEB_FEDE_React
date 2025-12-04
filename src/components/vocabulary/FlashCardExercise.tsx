@@ -22,7 +22,7 @@ interface FlashCardExerciseProps {
   onComplete?: (wordId: string) => void;
 }
 
-export default function FlashCardExercise({ cards, selectedWord }: FlashCardExerciseProps) {
+export default function FlashCardExercise({ cards, selectedWord, onComplete }: FlashCardExerciseProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -107,6 +107,11 @@ export default function FlashCardExercise({ cards, selectedWord }: FlashCardExer
     try {
       const result = await vocabularyApi.assessPronunciation(audioBlob, currentCard.term);
       setPronunciationResult(result);
+      
+      // Mark word as learned after pronunciation assessment
+      if (onComplete) {
+        onComplete(currentCard._id);
+      }
     } catch (error) {
       console.error("Error analyzing pronunciation:", error);
       alert("Lỗi khi phân tích phát âm. Vui lòng thử lại.");

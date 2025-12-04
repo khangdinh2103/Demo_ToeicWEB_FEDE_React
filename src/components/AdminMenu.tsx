@@ -21,7 +21,7 @@ export default function AdminMenu() {
     },
     {
       path: '/admin/courses',
-      label: 'Quản lý Khóa học',
+      label: 'Quản lý Lộ trình',
       icon: BookOpen
     },
     {

@@ -5,6 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Loader2, CheckCircle, Circle } from "lucide-react";
 import { vocabularyApi, normalizeId } from "@/api/vocabularyApi";
 import type { VocabularySet, FlashCard } from "@/api/vocabularyApi";
+import { vocabularyProgressApi } from "@/api/vocabularyProgressApi";
+import { getMyCustomVocabularySetById } from "@/api/studentVocabularyApi";
+import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 // Import exercise components
@@ -28,11 +31,14 @@ export default function VocabularyExercisePage() {
   console.log("🚀 VocabularyExercisePage component rendered!");
   
   const { setId: rawSetId } = useParams();
+  const location = useLocation();
+  const isCustomSet = location.pathname.includes("/my-vocabulary/");
+  
   const setId = useMemo(() => {
     const normalized = normalizeId(rawSetId || "");
-    console.log("🔑 rawSetId:", rawSetId, "→ normalized:", normalized);
+    console.log("🔑 rawSetId:", rawSetId, "→ normalized:", normalized, "isCustom:", isCustomSet);
     return normalized;
-  }, [rawSetId]);
+  }, [rawSetId, isCustomSet]);
   
   const navigate = useNavigate();
 
@@ -43,8 +49,30 @@ export default function VocabularyExercisePage() {
   const [mode, setMode] = useState<ExerciseMode>("flashcard");
   const [selectedWord, setSelectedWord] = useState<FlashCard | null>(null);
   const [completedWords, setCompletedWords] = useState<Set<string>>(new Set());
+  const [progress, setProgress] = useState<any>(null);
 
   console.log("📊 Component state:", { setId, activeSet: !!activeSet, isLoading, error });
+
+  // Load progress
+  useEffect(() => {
+    if (setId) {
+      loadProgress();
+    }
+  }, [setId]);
+
+  const loadProgress = async () => {
+    try {
+      const result = await vocabularyProgressApi.getProgress(setId);
+      setProgress(result.data);
+      // Set completed words from progress
+      if (result.data?.learned_words) {
+        const learnedIds = new Set<string>(result.data.learned_words.map((w: any) => w.word_id as string));
+        setCompletedWords(learnedIds);
+      }
+    } catch (error) {
+      console.error('Failed to load progress:', error);
+    }
+  };
 
   useEffect(() => {
     console.log("⚡ useEffect triggered - setId:", setId, "activeSet:", !!activeSet);
@@ -61,13 +89,22 @@ export default function VocabularyExercisePage() {
       return;
     }
 
-    console.log("🔄 Starting fetch for setId:", setId);
+    console.log("🔄 Starting fetch for setId:", setId, "isCustom:", isCustomSet);
     const fetchData = async () => {
       try {
         setIsLoading(true);
         setError(null);
         console.log("🔍 Fetching setId:", setId);
-        const fullSet: VocabularySet = await vocabularyApi.getVocabularySetById(setId);
+        
+        let fullSet: any;
+        if (isCustomSet) {
+          // Fetch from custom vocabulary API
+          fullSet = await getMyCustomVocabularySetById(setId);
+        } else {
+          // Fetch from standard vocabulary API
+          fullSet = await vocabularyApi.getVocabularySetById(setId);
+        }
+        
         console.log("✅ Received fullSet:", fullSet);
         console.log("📦 Cards array:", fullSet?.cards);
         console.log("📦 Cards count:", fullSet?.cards?.length);
@@ -90,8 +127,21 @@ export default function VocabularyExercisePage() {
     setMode("flashcard");
   };
 
-  const handleMarkComplete = (wordId: string) => {
+  const handleMarkComplete = async (wordId: string, recorded: boolean = false) => {
     setCompletedWords((prev) => new Set(prev).add(wordId));
+    
+    // Gửi API để lưu progress
+    try {
+      const result = await vocabularyProgressApi.markWordLearned({
+        set_id: setId,
+        word_id: wordId,
+        recorded: recorded
+      });
+      // Update progress state
+      setProgress(result.data);
+    } catch (error) {
+      console.error('Failed to mark word as learned:', error);
+    }
   };
 
   if (isLoading && !activeSet) {
@@ -141,6 +191,33 @@ export default function VocabularyExercisePage() {
               ← Quay lại
             </Button>
           </div>
+          {/* Progress Bar */}
+          {progress && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">
+                  Tiến độ: {progress.learned_count}/{progress.total_words} từ
+                </span>
+                <span className="text-sm font-bold text-blue-600">
+                  {progress.completion_percentage}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className={cn(
+                    "h-3 rounded-full transition-all",
+                    progress.is_completed ? "bg-green-500" : "bg-blue-500"
+                  )}
+                  style={{ width: `${progress.completion_percentage}%` }}
+                />
+              </div>
+              {progress.is_completed && (
+                <p className="text-sm text-green-600 font-medium mt-2">
+                  ✓ Đã hoàn thành set từ vựng này!
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -246,22 +323,36 @@ export default function VocabularyExercisePage() {
                       key={card._id}
                       onClick={() => handleWordClick(card)}
                       className={cn(
-                        "w-full text-left p-3 rounded-lg transition-colors hover:bg-gray-50 border",
-                        selectedWord?._id === card._id
-                          ? "border-green-500 bg-green-50"
-                          : "border-gray-200"
+                        "w-full text-left p-3 rounded-lg transition-all border",
+                        selectedWord?._id === card._id && isCompleted
+                          ? "border-green-500 bg-green-50 shadow-sm"
+                          : selectedWord?._id === card._id
+                          ? "border-blue-500 bg-blue-50 shadow-sm"
+                          : isCompleted
+                          ? "border-green-200 bg-green-50/30 hover:bg-green-100/50"
+                          : "border-gray-200 hover:bg-gray-50"
                       )}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="font-medium text-gray-900">{card.term}</div>
+                          <div className={cn(
+                            "font-medium",
+                            isCompleted ? "text-green-700" : "text-gray-900"
+                          )}>
+                            {card.term}
+                          </div>
                           {card.ipa && (
-                            <div className="text-xs text-gray-500 italic">/{card.ipa}/</div>
+                            <div className={cn(
+                              "text-xs italic",
+                              isCompleted ? "text-green-600" : "text-gray-500"
+                            )}>
+                              /{card.ipa}/
+                            </div>
                           )}
                         </div>
-                        <div className="ml-2">
+                        <div className="ml-2 flex-shrink-0">
                           {isCompleted ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <CheckCircle className="h-5 w-5 text-green-500 fill-green-100" />
                           ) : (
                             <Circle className="h-5 w-5 text-gray-300" />
                           )}

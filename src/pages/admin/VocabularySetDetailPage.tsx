@@ -15,7 +15,7 @@ import { vocabularyApi } from '@/api/practiceApi'
 interface FlashCard {
   _id?: string
   term: string
-  main_meaning: string
+  mainMeaning: string  // Changed from main_meaning to match backend
   example?: string
   ipa?: string
   collocations?: Array<{
@@ -23,8 +23,8 @@ interface FlashCard {
     meaning: string
     _id?: string
   }>
-  audio_us_url?: string
-  audio_uk_url?: string
+  audioUS_url?: string  // Changed from audio_us_url to match backend
+  audioUK_url?: string  // Changed from audio_uk_url to match backend
 }
 
 interface VocabularySet {
@@ -62,12 +62,12 @@ export default function VocabularySetDetailPage() {
   // Form state for new/edit card
   const [formData, setFormData] = useState<FlashCard>({
     term: '',
-    main_meaning: '',
+    mainMeaning: '',
     example: '',
     ipa: '',
     collocations: [],
-    audio_us_url: '',
-    audio_uk_url: ''
+    audioUS_url: '',
+    audioUK_url: ''
   })
 
   // Collocation form
@@ -83,6 +83,8 @@ export default function VocabularySetDetailPage() {
     try {
       setLoading(true)
       const response = await vocabularyApi.getSetById(id!)
+      console.log('📦 API Response:', response.data)
+      console.log('🎵 First card audio:', response.data?.cards?.[0]?.audioUS_url, response.data?.cards?.[0]?.audioUK_url)
       setVocabularySet(response.data)
     } catch (error: any) {
       toast({
@@ -174,12 +176,12 @@ export default function VocabularySetDetailPage() {
     setEditingCard(card)
     setFormData({
       term: card.term,
-      main_meaning: card.main_meaning,
+      mainMeaning: card.mainMeaning,
       example: card.example || '',
       ipa: card.ipa || '',
       collocations: card.collocations || [],
-      audio_us_url: card.audio_us_url || '',
-      audio_uk_url: card.audio_uk_url || ''
+      audioUS_url: card.audioUS_url || '',
+      audioUK_url: card.audioUK_url || ''
     })
     setShowEditDialog(true)
   }
@@ -192,12 +194,12 @@ export default function VocabularySetDetailPage() {
   const resetForm = () => {
     setFormData({
       term: '',
-      main_meaning: '',
+      mainMeaning: '',
       example: '',
       ipa: '',
       collocations: [],
-      audio_us_url: '',
-      audio_uk_url: ''
+      audioUS_url: '',
+      audioUK_url: ''
     })
     setNewCollocation({ phrase: '', meaning: '' })
   }
@@ -316,7 +318,7 @@ export default function VocabularySetDetailPage() {
                           )}
                         </div>
                         <CardDescription className="text-base">
-                          {card.main_meaning}
+                          {card.mainMeaning}
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2">
@@ -347,25 +349,25 @@ export default function VocabularySetDetailPage() {
                     )}
 
                     {/* Audio */}
-                    {(card.audio_us_url || card.audio_uk_url) && (
+                    {(card.audioUS_url || card.audioUK_url) && (
                       <div>
                         <Label className="text-xs text-gray-500">PHÁT ÂM</Label>
                         <div className="flex gap-2 mt-1">
-                          {card.audio_us_url && (
+                          {card.audioUS_url && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => playAudio(card.audio_us_url!)}
+                              onClick={() => playAudio(card.audioUS_url!)}
                             >
                               <Volume2 className="w-4 h-4 mr-1" />
                               🇺🇸 US
                             </Button>
                           )}
-                          {card.audio_uk_url && (
+                          {card.audioUK_url && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => playAudio(card.audio_uk_url!)}
+                              onClick={() => playAudio(card.audioUK_url!)}
                             >
                               <Volume2 className="w-4 h-4 mr-1" />
                               🇬🇧 UK
@@ -427,11 +429,11 @@ export default function VocabularySetDetailPage() {
 
                 {/* Main Meaning */}
                 <div>
-                  <Label htmlFor="main_meaning">Nghĩa tiếng Việt *</Label>
+                  <Label htmlFor="mainMeaning">Nghĩa tiếng Việt *</Label>
                   <Input
-                    id="main_meaning"
-                    value={formData.main_meaning}
-                    onChange={(e) => setFormData({ ...formData, main_meaning: e.target.value })}
+                    id="mainMeaning"
+                    value={formData.mainMeaning}
+                    onChange={(e) => setFormData({ ...formData, mainMeaning: e.target.value })}
                     placeholder="VD: sáng kiến, sự chủ động"
                     className="text-lg"
                   />
@@ -488,20 +490,20 @@ export default function VocabularySetDetailPage() {
                     {/* Audio URLs */}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="audio_us_url">Audio US URL (tùy chọn)</Label>
+                        <Label htmlFor="audioUS_url">Audio US URL (tùy chọn)</Label>
                         <Input
-                          id="audio_us_url"
-                          value={formData.audio_us_url}
-                          onChange={(e) => setFormData({ ...formData, audio_us_url: e.target.value })}
+                          id="audioUS_url"
+                          value={formData.audioUS_url}
+                          onChange={(e) => setFormData({ ...formData, audioUS_url: e.target.value })}
                           placeholder="AI sẽ tự tạo"
                         />
                       </div>
                       <div>
-                        <Label htmlFor="audio_uk_url">Audio UK URL (tùy chọn)</Label>
+                        <Label htmlFor="audioUK_url">Audio UK URL (tùy chọn)</Label>
                         <Input
-                          id="audio_uk_url"
-                          value={formData.audio_uk_url}
-                          onChange={(e) => setFormData({ ...formData, audio_uk_url: e.target.value })}
+                          id="audioUK_url"
+                          value={formData.audioUK_url}
+                          onChange={(e) => setFormData({ ...formData, audioUK_url: e.target.value })}
                           placeholder="AI sẽ tự tạo"
                         />
                       </div>
@@ -558,7 +560,7 @@ export default function VocabularySetDetailPage() {
                 </Button>
                 <Button
                   onClick={handleAddCard}
-                  disabled={!formData.term || !formData.main_meaning || isAddingCard}
+                  disabled={!formData.term || !formData.mainMeaning || isAddingCard}
                   className="min-w-[140px]"
                 >
                   {isAddingCard ? (
@@ -599,11 +601,11 @@ export default function VocabularySetDetailPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-main_meaning">Nghĩa chính *</Label>
+                  <Label htmlFor="edit-mainMeaning">Nghĩa chính *</Label>
                   <Input
-                    id="edit-main_meaning"
-                    value={formData.main_meaning}
-                    onChange={(e) => setFormData({ ...formData, main_meaning: e.target.value })}
+                    id="edit-mainMeaning"
+                    value={formData.mainMeaning}
+                    onChange={(e) => setFormData({ ...formData, mainMeaning: e.target.value })}
                   />
                 </div>
 
@@ -628,19 +630,19 @@ export default function VocabularySetDetailPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="edit-audio_us_url">Audio US URL</Label>
+                    <Label htmlFor="edit-audioUS_url">Audio US URL</Label>
                     <Input
-                      id="edit-audio_us_url"
-                      value={formData.audio_us_url}
-                      onChange={(e) => setFormData({ ...formData, audio_us_url: e.target.value })}
+                      id="edit-audioUS_url"
+                      value={formData.audioUS_url}
+                      onChange={(e) => setFormData({ ...formData, audioUS_url: e.target.value })}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-audio_uk_url">Audio UK URL</Label>
+                    <Label htmlFor="edit-audioUK_url">Audio UK URL</Label>
                     <Input
-                      id="edit-audio_uk_url"
-                      value={formData.audio_uk_url}
-                      onChange={(e) => setFormData({ ...formData, audio_uk_url: e.target.value })}
+                      id="edit-audioUK_url"
+                      value={formData.audioUK_url}
+                      onChange={(e) => setFormData({ ...formData, audioUK_url: e.target.value })}
                     />
                   </div>
                 </div>
@@ -689,7 +691,7 @@ export default function VocabularySetDetailPage() {
                 </Button>
                 <Button
                   onClick={handleEditCard}
-                  disabled={!formData.term || !formData.main_meaning}
+                  disabled={!formData.term || !formData.mainMeaning}
                 >
                   <Save className="w-4 h-4 mr-2" />
                   Lưu thay đổi

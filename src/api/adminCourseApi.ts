@@ -32,6 +32,7 @@ export interface CreateLessonRequest {
   description?: string;
   order: number;
   is_free?: boolean;
+  created_by: string;
 }
 
 export interface UpdateLessonRequest {
@@ -139,6 +140,30 @@ export const adminCourseApi = {
 
   deleteSection: async (id: string) => {
     const response = await axiosInstance.delete(`/admin/sections/${id}`);
+    return response.data;
+  },
+
+  // Reorder APIs
+  reorderLessons: async (courseId: string, lessonOrders: Array<{ lesson_id: string; order: number }>) => {
+    const response = await axiosInstance.patch(`/admin/courses/${courseId}/reorder-lessons`, { lesson_orders: lessonOrders });
+    return response.data;
+  },
+
+  reorderSections: async (lessonId: string, sectionOrders: Array<{ section_id: string; order: number }>) => {
+    const response = await axiosInstance.patch(`/admin/lessons/${lessonId}/reorder-sections`, { section_orders: sectionOrders });
+    return response.data;
+  },
+
+  // Upload media
+  uploadMedia: async (file: File, type: 'audio' | 'image') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+    const response = await axiosInstance.post('/admin/tests/upload-media', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

@@ -15,6 +15,9 @@ export interface Course {
   price: number;
   original_price: number;
   is_free: boolean;
+  total_lessons?: number;
+  total_duration_minutes?: number;
+  completion_percentage?: number; // ✅ Thêm field này
   createdAt: string;
   updatedAt: string;
 }
@@ -124,6 +127,113 @@ export const courseApi = {
     message: string;
   }> => {
     const response = await axiosInstance.get(`/student/courses/${courseId}/lessons`);
+    return response.data;
+  },
+
+  // GET courses by roadmap ID - via roadmap detail API
+  getCoursesByRoadmap: async (roadmapId: string): Promise<{
+    success: boolean;
+    data: Course[];
+    message: string;
+  }> => {
+    try {
+      // Get roadmap detail which includes courses array
+      console.log('🔍 Fetching roadmap detail:', roadmapId)
+      const roadmapResponse = await axiosInstance.get(`/student/roadmaps/${roadmapId}`);
+      console.log('📦 Roadmap response:', roadmapResponse.data)
+      
+      const roadmapData = roadmapResponse.data.data;
+      const courses = roadmapData.courses || [];
+      
+      console.log('📚 Course IDs from roadmap:', courses)
+      
+      if (!Array.isArray(courses) || courses.length === 0) {
+        console.warn('⚠️ No courses found in roadmap')
+        return {
+          success: true,
+          data: [],
+          message: 'No courses found'
+        };
+      }
+      
+      // Load full course details
+      const courseDetailsPromises = courses.map((course: any) => {
+        // Check if already populated object or just ID
+        const courseId = typeof course === 'string' ? course : course._id;
+        
+        return axiosInstance.get(`/student/courses/${courseId}`)
+          .then(res => {
+            console.log(`✅ Loaded course ${courseId}:`, res.data.data.title)
+            return res.data.data
+          })
+          .catch(err => {
+            console.error(`❌ Failed to load course ${courseId}:`, err.message)
+            return null
+          })
+      });
+      
+      const courseDetails = await Promise.all(courseDetailsPromises);
+      const validCourses = courseDetails.filter(c => c !== null);
+      
+      console.log('✅ Final courses:', validCourses.length)
+      
+      return {
+        success: true,
+        data: validCourses,
+        message: 'Success'
+      };
+    } catch (error: any) {
+      console.error('❌ Error in getCoursesByRoadmap:', error)
+      throw error;
+    }
+  },
+
+  // =====================================================
+  // Section Progress APIs
+  // =====================================================
+
+  // POST /api/student/sections/:sectionId/submit - Submit bài tập
+  submitExercise: async (sectionId: string, answers: Array<{ question_id: string; selected_answer: number }>): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      section_id: string;
+      total_questions: number;
+      correct_answers: number;
+      score_percentage: number;
+      is_completed: boolean;
+      passing_score: number;
+      attempts: number;
+      answers: Array<{ question_id: string; selected_answer: number; is_correct: boolean }>;
+    };
+  }> => {
+    const response = await axiosInstance.post(`/student/sections/${sectionId}/submit`, { answers });
+    return response.data;
+  },
+
+  // POST /api/student/sections/:sectionId/view - Đánh dấu đã xem video/mindmap
+  markSectionViewed: async (sectionId: string): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      section_id: string;
+      is_viewed: boolean;
+      is_completed: boolean;
+    };
+  }> => {
+    const response = await axiosInstance.post(`/student/sections/${sectionId}/view`);
+    return response.data;
+  },
+
+  // GET /api/student/sections/:sectionId/progress - Lấy tiến độ section
+  getSectionProgress: async (sectionId: string): Promise<any> => {
+    const response = await axiosInstance.get(`/student/sections/${sectionId}/progress`);
+    return response.data;
+  },
+
+  // GET /api/student/courses/:courseId/progress - Lấy tiến độ course
+  getCourseProgress: async (courseId: string): Promise<any> => {
+    const response = await axiosInstance.get(`/student/courses/${courseId}/progress`);
     return response.data;
   },
 };

@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Target, TrendingUp, Clock, Award, BookOpen } from "lucide-react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { Target, TrendingUp, Clock, Award } from "lucide-react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { roadmapApi, type Roadmap } from "@/api/roadmapApi"
 
 export default function LearningPathPage() {
@@ -18,68 +18,68 @@ export default function LearningPathPage() {
     totalQuestions?: number 
   } | null
   
-  const [selectedSkill, setSelectedSkill] = useState("all") // listening-reading, speaking-writing, all
-  const [currentLevel, setCurrentLevel] = useState("lr_1_449_sw_1_99")
-  const [targetLevel, setTargetLevel] = useState("lr_450_sw_100")
+  const [selectedSkill, setSelectedSkill] = useState("all")
   const [roadmaps, setRoadmaps] = useState<Roadmap[]>([])
   const [loading, setLoading] = useState(true)
+  const [filteredRoadmaps, setFilteredRoadmaps] = useState<Roadmap[]>([])
 
-  // Load roadmaps from database
+  // Load roadmaps from API
   useEffect(() => {
+    const loadRoadmaps = async () => {
+      try {
+        setLoading(true)
+        const response = await roadmapApi.getPublicRoadmaps(1, 100)
+        setRoadmaps(response.data)
+      } catch (error) {
+        console.error("Error loading roadmaps:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
     loadRoadmaps()
   }, [])
 
-  const loadRoadmaps = async () => {
-    try {
-      setLoading(true)
-      const response = await roadmapApi.getPublicRoadmaps(1, 100, { sortBy: 'popular' })
-      setRoadmaps(response.data)
-    } catch (error) {
-      console.error('Error loading roadmaps:', error)
-    } finally {
-      setLoading(false)
+  // Filter roadmaps by skill
+  useEffect(() => {
+    if (roadmaps.length === 0) return
+
+    let filtered = roadmaps
+
+    if (selectedSkill === "listening-reading") {
+      filtered = roadmaps.filter(r => 
+        r.skill_groups.includes("listening") || r.skill_groups.includes("reading")
+      )
+    } else if (selectedSkill === "speaking-writing") {
+      filtered = roadmaps.filter(r => 
+        r.skill_groups.includes("speaking") || r.skill_groups.includes("writing")
+      )
     }
+
+    // Sort by target_score
+    filtered = filtered.sort((a, b) => a.target_score - b.target_score)
+    
+    setFilteredRoadmaps(filtered)
+  }, [roadmaps, selectedSkill])
+
+  const getSkillIcon = (skillGroups: string[]) => {
+    if (skillGroups.includes("listening") || skillGroups.includes("reading")) {
+      return "🎧"
+    } else if (skillGroups.includes("speaking") || skillGroups.includes("writing")) {
+      return "🗣️"
+    }
+    return "📚"
   }
 
-  // Tự động set level dựa trên placement test score
-  useEffect(() => {
-    if (placementTestData?.placementTestScore) {
-      const score = placementTestData.placementTestScore
-      if (score >= 800) {
-        setCurrentLevel("lr_550_650_sw_200_250")
-        setTargetLevel("lr_800_sw_300")
-      } else if (score >= 550) {
-        setCurrentLevel("lr_550_650_sw_200_250")
-        setTargetLevel("lr_800_sw_300")
-      } else if (score >= 450) {
-        setCurrentLevel("lr_450_549_sw_100_199")
-        setTargetLevel("lr_550_sw_200")
-      } else {
-        setCurrentLevel("lr_1_449_sw_1_99")
-        setTargetLevel("lr_450_sw_100")
-      }
-    }
-  }, [placementTestData])
-
-  // Update levels when skill changes
-  useEffect(() => {
-    if (selectedSkill === "listening-reading") {
-      setCurrentLevel("lr_1_449")
-      setTargetLevel("lr_450")
-    } else if (selectedSkill === "speaking-writing") {
-      setCurrentLevel("sw_1_99")
-      setTargetLevel("sw_100")
-    } else {
-      // 4 kỹ năng: update defaults
-      setCurrentLevel("lr_1_449_sw_1_99")
-      setTargetLevel("lr_450_sw_100")
-    }
-  }, [selectedSkill])
-
-  // Types for learning path data
-  interface Course { id: number; title: string; subtitle: string; icon: string; status: string }
-  interface Milestone { name: string; score: string; icon: string }
-  interface LearningPath { title: string; duration: string; courses: Course[]; milestones: Milestone[] }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Đang tải lộ trình...</p>
+        </div>
+      </div>
+    )
+  }
 
   const currentLevels = {
     "listening-reading": [
@@ -503,82 +503,6 @@ export default function LearningPathPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Roadmaps From Database */}
-        {roadmaps.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Các lộ trình học có sẵn</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {roadmaps.filter(roadmap => {
-                if (selectedSkill === "all") return true
-                if (selectedSkill === "listening-reading") {
-                  return roadmap.skill_groups.some(s => s === "listening" || s === "reading")
-                }
-                if (selectedSkill === "speaking-writing") {
-                  return roadmap.skill_groups.some(s => s === "speaking" || s === "writing")
-                }
-                return true
-              }).map(roadmap => (
-                <Card key={roadmap._id} className="hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{roadmap.title}</CardTitle>
-                    <Badge className="w-fit">
-                      {roadmap.target_score} điểm
-                    </Badge>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                      {roadmap.description}
-                    </p>
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm">
-                        <BookOpen className="h-4 w-4 text-blue-600" />
-                        <span>{roadmap.total_courses} khóa học</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Award className="h-4 w-4 text-purple-600" />
-                        <span className="flex gap-1 flex-wrap">
-                          {roadmap.skill_groups.map(skill => (
-                            <Badge key={skill} variant="secondary" className="text-xs">
-                              {skill}
-                            </Badge>
-                          ))}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mb-4">
-                      {roadmap.discount_percentage > 0 ? (
-                        <div className="flex flex-col">
-                          <span className="text-lg font-bold text-blue-600">
-                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                              roadmap.price * (1 - roadmap.discount_percentage / 100)
-                            )}
-                          </span>
-                          <span className="text-sm text-gray-500 line-through">
-                            {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(roadmap.price)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-lg font-bold text-blue-600">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(roadmap.price)}
-                        </span>
-                      )}
-                      {roadmap.discount_percentage > 0 && (
-                        <Badge className="bg-red-500">-{roadmap.discount_percentage}%</Badge>
-                      )}
-                    </div>
-                    <Button 
-                      className="w-full"
-                      onClick={() => navigate(`/learning-path/detail/${roadmap._id}`)}
-                    >
-                      Xem chi tiết
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Additional Info */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">

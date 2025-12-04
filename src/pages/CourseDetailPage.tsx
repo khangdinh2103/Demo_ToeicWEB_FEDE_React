@@ -8,16 +8,20 @@ import {
   Star, Users, Play, ArrowLeft, CheckCircle, 
   Video, FileText, Lock, Loader2, BookOpen, Image as ImageIcon
 } from "lucide-react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { courseApi, type Course, type Lesson, type Section } from "@/api/courseApi"
 
 export default function CourseDetailPage() {
   const { id } = useParams()
+  const [searchParams] = useSearchParams()
   const [course, setCourse] = useState<Course | null>(null)
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [isEnrolled, setIsEnrolled] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // Check if accessed from enrolled roadmap
+  const enrolledFromRoadmap = searchParams.get('enrolled') === 'true'
   
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null)
   const [selectedSection, setSelectedSection] = useState<Section | null>(null)
@@ -47,11 +51,15 @@ export default function CourseDetailPage() {
       
       setCourse(courseResponse.data)
       setLessons(lessonsResponse.data.lessons)
-      setIsEnrolled(lessonsResponse.data.is_enrolled)
       
-      // Auto expand first lesson
+      // If accessed from enrolled roadmap, mark as enrolled
+      const enrolled = enrolledFromRoadmap || lessonsResponse.data.is_enrolled
+      setIsEnrolled(enrolled)
+      
+      // Auto expand first lesson or lesson from query param
+      const targetLessonId = searchParams.get('lesson')
       if (lessonsResponse.data.lessons.length > 0) {
-        const firstLessonId = lessonsResponse.data.lessons[0]._id
+        const firstLessonId = targetLessonId || lessonsResponse.data.lessons[0]._id
         setExpandedLessons(new Set([firstLessonId]))
       }
     } catch (err: any) {
@@ -72,10 +80,15 @@ export default function CourseDetailPage() {
     setExpandedLessons(newExpanded)
   }
 
-  const handleSectionClick = (lesson: Lesson, section: Section) => {
-    // Check if section is locked
+  const handleSectionClick = async (lesson: Lesson, section: Section) => {
+    const lessonData = lesson as any
     const sectionData = section as any
-    if (sectionData.is_locked || (!isEnrolled && !(lesson as any).is_free)) {
+    
+    // Check if section/lesson is locked
+    const isLocked = sectionData.is_locked || lessonData.is_locked
+    
+    if (isLocked) {
+      // Don't allow access to locked sections
       return
     }
     
@@ -85,6 +98,25 @@ export default function CourseDetailPage() {
     setUserAnswers({})
     setShowResults(false)
     setScore(0)
+    setSubmitResult(null)
+
+    // ✅ Tự động đánh dấu video và mindmap là đã xem
+    const sectionType = section.type || (section as any).section_type
+    if (sectionType === 'video' || sectionType === 'mindmap') {
+      try {
+        console.log(`🔄 Đang đánh dấu section ${section._id} (${sectionType}) là đã xem...`)
+        await courseApi.markSectionViewed(section._id)
+        console.log(`✅ Đã đánh dấu section ${section._id} là đã xem`)
+        
+        // Reload lessons để cập nhật trạng thái (sau 1s để backend xử lý)
+        setTimeout(() => {
+          fetchCourseData()
+        }, 1000)
+      } catch (err: any) {
+        console.error('❌ Lỗi khi đánh dấu section đã xem:', err)
+        console.error('Error details:', err.response?.data)
+      }
+    }
   }
 
   const handleAnswerChange = (questionId: string, answer: any) => {
@@ -94,34 +126,66 @@ export default function CourseDetailPage() {
     }))
   }
 
-  const handleSubmitQuiz = () => {
+  const [submitting, setSubmitting] = useState(false)
+  const [submitResult, setSubmitResult] = useState<any>(null)
+
+  const handleSubmitQuiz = async () => {
     if (!selectedSection?.questions) return
     
-    let correctCount = 0
-    selectedSection.questions.forEach(q => {
-      const userAnswer = userAnswers[q.id]
-      if (q.questionType === 'multiple-choice') {
-        if (userAnswer === q.correctAnswer) correctCount++
-      } else if (q.questionType === 'fill-blank') {
-        const correctAnswers = q.correctAnswers || []
-        if (correctAnswers.some(ans => 
-          ans.toLowerCase().trim() === String(userAnswer || '').toLowerCase().trim()
-        )) {
-          correctCount++
-        }
+    // Chuẩn bị answers cho API
+    const answers = Object.entries(userAnswers).map(([questionId, answer]) => ({
+      question_id: questionId,
+      selected_answer: typeof answer === 'number' ? answer : parseInt(answer)
+    }))
+
+    try {
+      setSubmitting(true)
+      
+      // Gọi API submit
+      const result = await courseApi.submitExercise(selectedSection._id, answers)
+      setSubmitResult(result.data)
+      setScore(result.data.score_percentage)
+      setShowResults(true)
+      
+      // Nếu đạt >= 70%, refresh để cập nhật trạng thái unlock
+      if (result.data.is_completed) {
+        // Reload lessons để cập nhật trạng thái lock
+        setTimeout(() => {
+          fetchCourseData()
+        }, 2000)
       }
-    })
-    
-    const totalQuestions = selectedSection.questions.length
-    const percentage = (correctCount / totalQuestions) * 100
-    setScore(percentage)
-    setShowResults(true)
+    } catch (err: any) {
+      console.error("Error submitting quiz:", err)
+      // Fallback to local calculation if API fails
+      let correctCount = 0
+      selectedSection.questions.forEach(q => {
+        const userAnswer = userAnswers[q.id]
+        if (q.questionType === 'multiple-choice') {
+          if (userAnswer === q.correctAnswer) correctCount++
+        } else if (q.questionType === 'fill-blank') {
+          const correctAnswers = q.correctAnswers || []
+          if (correctAnswers.some(ans => 
+            ans.toLowerCase().trim() === String(userAnswer || '').toLowerCase().trim()
+          )) {
+            correctCount++
+          }
+        }
+      })
+      
+      const totalQuestions = selectedSection.questions.length
+      const percentage = (correctCount / totalQuestions) * 100
+      setScore(percentage)
+      setShowResults(true)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleResetQuiz = () => {
     setUserAnswers({})
     setShowResults(false)
     setScore(0)
+    setSubmitResult(null)
   }
 
   const getSkillLabel = (skills: string[]) => {
@@ -334,9 +398,30 @@ export default function CourseDetailPage() {
                             <p className="text-sm text-gray-600">
                               {score >= (selectedSection.passingScore || 70) ? '✅ Đạt' : '❌ Chưa đạt'}
                             </p>
+                            {submitResult && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Lần thử: {submitResult.attempts}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
+
+                      {/* Success/Warning Message after submit */}
+                      {showResults && submitResult && (
+                        <div className={`p-4 rounded-lg ${
+                          submitResult.is_completed 
+                            ? 'bg-green-50 border border-green-200' 
+                            : 'bg-orange-50 border border-orange-200'
+                        }`}>
+                          <p className={`text-sm ${submitResult.is_completed ? 'text-green-700' : 'text-orange-700'}`}>
+                            {submitResult.is_completed 
+                              ? '🎉 Chúc mừng! Bạn đã hoàn thành bài tập và có thể mở khóa chương tiếp theo.'
+                              : `⚠️ Bạn cần đạt tối thiểu ${submitResult.passing_score}% để mở khóa chương tiếp theo. Hãy thử lại!`
+                            }
+                          </p>
+                        </div>
+                      )}
 
                       {/* Questions */}
                       <div className="space-y-6">
@@ -477,9 +562,19 @@ export default function CourseDetailPage() {
                             onClick={handleSubmitQuiz}
                             className="flex-1"
                             size="lg"
+                            disabled={submitting}
                           >
-                            <CheckCircle className="mr-2 h-5 w-5" />
-                            Nộp bài
+                            {submitting ? (
+                              <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Đang chấm...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="mr-2 h-5 w-5" />
+                                Nộp bài
+                              </>
+                            )}
                           </Button>
                         ) : (
                           <>
@@ -558,11 +653,13 @@ export default function CourseDetailPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {lessons.map((lesson) => {
+                  {lessons.map((lesson, index) => {
                     const lessonData = lesson as any
                     const isExpanded = expandedLessons.has(lesson._id)
                     const isFree = lessonData.is_free
-                    const isLocked = lessonData.is_locked
+                    // If enrolled from roadmap, check lock from API response
+                    const isLocked = enrolledFromRoadmap ? lessonData.is_locked : lessonData.is_locked
+                    const lockReason = lessonData.lock_reason
 
                     return (
                       <div key={lesson._id} className="border rounded-lg">
@@ -573,6 +670,8 @@ export default function CourseDetailPage() {
                           <div className="flex items-center space-x-3 text-left flex-1">
                             {isLocked ? (
                               <Lock className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                            ) : (enrolledFromRoadmap || isEnrolled) && index === 0 ? (
+                              <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                             ) : isFree ? (
                               <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                             ) : (
@@ -583,6 +682,7 @@ export default function CourseDetailPage() {
                               <p className="text-xs text-gray-500 truncate">
                                 {lesson.total_sections || (lesson.sections?.length || 0)} phần
                                 {isFree && <span className="ml-2 text-green-600">• Miễn phí</span>}
+                                {isLocked && isEnrolled && <span className="ml-2 text-orange-600">• Đang khóa</span>}
                               </p>
                             </div>
                           </div>
@@ -591,12 +691,23 @@ export default function CourseDetailPage() {
                           </div>
                         </button>
 
+                        {/* Lock reason message */}
+                        {isExpanded && isLocked && lockReason && (
+                          <div className="px-3 py-2 bg-orange-50 border-t border-orange-200">
+                            <p className="text-xs text-orange-700">
+                              🔒 {lockReason}
+                            </p>
+                          </div>
+                        )}
+
                         {isExpanded && lesson.sections && lesson.sections.length > 0 && (
                           <div className="border-t">
                             {lesson.sections.map((section) => {
                               const sectionData = section as any
+                              // Section locked if lesson is locked
                               const sectionLocked = sectionData.is_locked || isLocked
                               const isSelected = selectedSection?._id === section._id
+                              const sectionProgress = sectionData.progress
 
                               return (
                                 <button
@@ -610,17 +721,26 @@ export default function CourseDetailPage() {
                                   <div className="flex-shrink-0">
                                     {sectionLocked ? (
                                       <Lock className="h-3 w-3 text-gray-400" />
+                                    ) : sectionProgress?.is_completed ? (
+                                      <CheckCircle className="h-3 w-3 text-green-500" />
                                     ) : section.video_url ? (
                                       <Video className="h-3 w-3 text-blue-500" />
                                     ) : section.mindmap_url ? (
                                       <ImageIcon className="h-3 w-3 text-purple-500" />
-                                    ) : section.test_id ? (
+                                    ) : section.test_id || (section as any).type === 'exercise' || (section as any).type === 'quiz' ? (
                                       <FileText className="h-3 w-3 text-orange-500" />
                                     ) : (
                                       <FileText className="h-3 w-3 text-gray-400" />
                                     )}
                                   </div>
-                                  <p className="text-sm truncate flex-1">{section.title}</p>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm truncate">{section.title}</p>
+                                    {sectionProgress && sectionProgress.is_completed && (
+                                      <p className="text-xs text-green-600 font-medium">
+                                        Hoàn thành ✓
+                                      </p>
+                                    )}
+                                  </div>
                                 </button>
                               )
                             })}

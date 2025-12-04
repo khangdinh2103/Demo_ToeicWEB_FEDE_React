@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Trash2, Search, BookText, Mic, AlertCircle, Video, BookOpen, Plus } from 'lucide-react'
+import { Trash2, Search, BookText, Mic, AlertCircle, Video, BookOpen, Plus, PenTool } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -13,6 +13,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import AdminMenu from '@/components/AdminMenu'
 import { vocabularyApi, dictationApi } from '@/api/practiceApi'
+import { adminWritingApi } from '@/api/adminWritingApi'
+import type { WritingPrompt } from '@/api/adminWritingApi'
 
 interface VocabularySet {
   _id: string
@@ -72,16 +74,23 @@ export default function PracticeManagementPage() {
   const navigate = useNavigate()
   const [vocabularySets, setVocabularySets] = useState<VocabularySet[]>([])
   const [dictations, setDictations] = useState<Dictation[]>([])
+  const [writingPrompts, setWritingPrompts] = useState<WritingPrompt[]>([])
   const [loading, setLoading] = useState(true)
   const [searchVocab, setSearchVocab] = useState('')
   const [searchDictation, setSearchDictation] = useState('')
+  const [searchWriting, setSearchWriting] = useState('')
   const [selectedPartOfSpeech, setSelectedPartOfSpeech] = useState<string>('all')
   const [showDeleteVocabDialog, setShowDeleteVocabDialog] = useState(false)
   const [showDeleteDictationDialog, setShowDeleteDictationDialog] = useState(false)
+  const [showDeleteWritingDialog, setShowDeleteWritingDialog] = useState(false)
   const [selectedVocabSets, setSelectedVocabSets] = useState<string[]>([])
   const [selectedDictations, setSelectedDictations] = useState<string[]>([])
+  const [selectedWritingPrompts, setSelectedWritingPrompts] = useState<string[]>([])
   const [showCreateSetDialog, setShowCreateSetDialog] = useState(false)
   const [showCreateDictationDialog, setShowCreateDictationDialog] = useState(false)
+  const [showCreateWritingDialog, setShowCreateWritingDialog] = useState(false)
+  const [showEditWritingDialog, setShowEditWritingDialog] = useState(false)
+  const [editingWritingPrompt, setEditingWritingPrompt] = useState<WritingPrompt | null>(null)
   const [createSetForm, setCreateSetForm] = useState({
     part_of_speech: 'noun',
     day_number: 1,
@@ -93,12 +102,26 @@ export default function PracticeManagementPage() {
     title: '',
     youtubeVideoId: ''
   })
+  const [createWritingForm, setCreateWritingForm] = useState({
+    type: 'image' as 'text' | 'image',
+    required_words: '',
+    imageFile: null as File | null,
+    image_description: ''
+  })
+  const [editWritingForm, setEditWritingForm] = useState({
+    type: 'image' as 'text' | 'image',
+    required_words: '',
+    imageFile: null as File | null,
+    removeImage: false,
+    image_description: ''
+  })
   const { toast } = useToast()
 
   // Fetch data
   useEffect(() => {
     fetchVocabularySets()
     fetchDictations()
+    fetchWritingPrompts()
   }, [])
 
   const fetchVocabularySets = async () => {
@@ -133,6 +156,21 @@ export default function PracticeManagementPage() {
         description: error.response?.data?.message || 'Không thể tải danh sách chính tả'
       })
       setDictations([])
+    }
+  }
+
+  const fetchWritingPrompts = async () => {
+    try {
+      const prompts = await adminWritingApi.getAllWritingPrompts()
+      setWritingPrompts(Array.isArray(prompts) ? prompts : [])
+    } catch (error: any) {
+      console.error('Error fetching writing prompts:', error)
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể tải danh sách đề writing'
+      })
+      setWritingPrompts([])
     }
   }
 
@@ -265,6 +303,171 @@ export default function PracticeManagementPage() {
     }
   }
 
+  // Delete writing prompts
+  const handleDeleteWritingPrompts = async () => {
+    try {
+      await Promise.all(selectedWritingPrompts.map(id => adminWritingApi.deleteWritingPrompt(id)))
+      
+      toast({
+        title: 'Thành công',
+        description: `Đã xóa ${selectedWritingPrompts.length} đề writing`
+      })
+      
+      setSelectedWritingPrompts([])
+      setShowDeleteWritingDialog(false)
+      fetchWritingPrompts()
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể xóa đề writing'
+      })
+    }
+  }
+
+  const handleCreateWritingPrompt = async () => {
+    try {
+      if (!createWritingForm.required_words) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Vui lòng nhập đúng 2 từ yêu cầu (cách nhau bởi dấu phẩy)'
+        })
+        return
+      }
+
+      const wordsArray = createWritingForm.required_words.split(',').map(w => w.trim()).filter(w => w)
+      
+      if (wordsArray.length !== 2) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Phải nhập đúng 2 từ yêu cầu (hiện tại: ' + wordsArray.length + ' từ)'
+        })
+        return
+      }
+
+      if (createWritingForm.type === 'image' && !createWritingForm.imageFile) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Vui lòng chọn ảnh cho đề writing'
+        })
+        return
+      }
+
+      await adminWritingApi.createWritingPrompt({
+        type: createWritingForm.type,
+        required_words: wordsArray,
+        image: createWritingForm.imageFile || undefined,
+        image_description: createWritingForm.image_description || undefined
+      })
+      
+      toast({
+        title: 'Thành công',
+        description: 'Đã tạo đề writing mới'
+      })
+      
+      setShowCreateWritingDialog(false)
+      
+      // Reset form
+      setCreateWritingForm({
+        type: 'image',
+        required_words: '',
+        imageFile: null,
+        image_description: ''
+      })
+      
+      fetchWritingPrompts()
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể tạo đề writing'
+      })
+    }
+  }
+
+  const handleEditWritingPrompt = async () => {
+    try {
+      if (!editingWritingPrompt) return
+
+      if (!editWritingForm.required_words) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Vui lòng nhập đúng 2 từ yêu cầu (cách nhau bởi dấu phẩy)'
+        })
+        return
+      }
+
+      const wordsArray = editWritingForm.required_words.split(',').map(w => w.trim()).filter(w => w)
+      
+      if (wordsArray.length !== 2) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Phải nhập đúng 2 từ yêu cầu (hiện tại: ' + wordsArray.length + ' từ)'
+        })
+        return
+      }
+
+      if (editWritingForm.type === 'image' && !editingWritingPrompt.image_url && !editWritingForm.imageFile) {
+        toast({
+          variant: 'destructive',
+          title: 'Lỗi',
+          description: 'Đề hình ảnh phải có ảnh'
+        })
+        return
+      }
+
+      await adminWritingApi.updateWritingPrompt(editingWritingPrompt._id, {
+        type: editWritingForm.type,
+        required_words: wordsArray,
+        image: editWritingForm.imageFile || undefined,
+        remove_image: editWritingForm.removeImage,
+        image_description: editWritingForm.image_description || undefined
+      })
+      
+      toast({
+        title: 'Thành công',
+        description: 'Đã cập nhật đề writing'
+      })
+      
+      setShowEditWritingDialog(false)
+      setEditingWritingPrompt(null)
+      
+      // Reset form
+      setEditWritingForm({
+        type: 'image',
+        required_words: '',
+        imageFile: null,
+        removeImage: false,
+        image_description: ''
+      })
+      
+      fetchWritingPrompts()
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Lỗi',
+        description: error.response?.data?.message || 'Không thể cập nhật đề writing'
+      })
+    }
+  }
+
+  const openEditWritingDialog = (prompt: WritingPrompt) => {
+    setEditingWritingPrompt(prompt)
+    setEditWritingForm({
+      type: prompt.type,
+      required_words: (prompt.required_words || []).join(', '),
+      imageFile: null,
+      removeImage: false,
+      image_description: prompt.image_description || ''
+    })
+    setShowEditWritingDialog(true)
+  }
+
   // Toggle selection
   const toggleVocabSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -276,6 +479,13 @@ export default function PracticeManagementPage() {
   const toggleDictationSelection = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setSelectedDictations(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const toggleWritingSelection = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedWritingPrompts(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
@@ -304,6 +514,11 @@ export default function PracticeManagementPage() {
     dict.title.toLowerCase().includes(searchDictation.toLowerCase())
   ) : []
 
+  const filteredWritingPrompts = Array.isArray(writingPrompts) ? writingPrompts.filter(prompt =>
+    (prompt.required_words || []).join(', ').toLowerCase().includes(searchWriting.toLowerCase()) ||
+    prompt.type.toLowerCase().includes(searchWriting.toLowerCase())
+  ) : []
+
   const getPartOfSpeechInfo = (pos: string) => {
     return PART_OF_SPEECH_MAP[pos] || { label: pos, icon: '📖', color: 'bg-gray-100 text-gray-800' }
   }
@@ -323,6 +538,12 @@ export default function PracticeManagementPage() {
     totalBreaks: dictations.reduce((sum, d) => sum + (d.breaks?.length || 0), 0)
   }
 
+  const writingStats = {
+    total: writingPrompts.length,
+    textType: writingPrompts.filter(p => p.type === 'text').length,
+    imageType: writingPrompts.filter(p => p.type === 'image').length
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <AdminMenu />
@@ -334,7 +555,7 @@ export default function PracticeManagementPage() {
           </div>
 
           <Tabs defaultValue="vocabulary" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="vocabulary" className="flex items-center gap-2">
                 <BookText className="w-4 h-4" />
                 Từ vựng ({vocabularySets.length})
@@ -342,6 +563,10 @@ export default function PracticeManagementPage() {
               <TabsTrigger value="dictation" className="flex items-center gap-2">
                 <Mic className="w-4 h-4" />
                 Chính tả ({dictations.length})
+              </TabsTrigger>
+              <TabsTrigger value="writing" className="flex items-center gap-2">
+                <PenTool className="w-4 h-4" />
+                Writing ({writingPrompts.length})
               </TabsTrigger>
             </TabsList>
 
@@ -690,6 +915,144 @@ export default function PracticeManagementPage() {
                 </div>
               )}
             </TabsContent>
+
+            {/* WRITING TAB */}
+            <TabsContent value="writing" className="space-y-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{writingStats.total}</div>
+                    <div className="text-xs text-gray-600 mt-1">Tổng số đề</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <div className="text-2xl font-bold text-purple-600">{writingStats.textType}</div>
+                    <div className="text-xs text-gray-600 mt-1">Đề Text</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <div className="text-2xl font-bold text-orange-600">{writingStats.imageType}</div>
+                    <div className="text-xs text-gray-600 mt-1">Đề Hình ảnh</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={() => setShowCreateWritingDialog(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Tạo đề writing mới
+                </Button>
+
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Tìm kiếm theo từ yêu cầu hoặc loại..."
+                    value={searchWriting}
+                    onChange={(e) => setSearchWriting(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {selectedWritingPrompts.length > 0 && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteWritingDialog(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Xóa ({selectedWritingPrompts.length})
+                  </Button>
+                )}
+              </div>
+
+              {/* Writing Prompts List */}
+              {loading ? (
+                <div className="text-center py-12 text-gray-500">
+                  Đang tải...
+                </div>
+              ) : filteredWritingPrompts.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <AlertCircle className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>Chưa có đề writing nào</p>
+                  <p className="text-sm mt-2">Nhấn "Tạo đề writing mới" để bắt đầu</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredWritingPrompts.map((prompt) => {
+                    const isSelected = selectedWritingPrompts.includes(prompt._id)
+                    return (
+                      <Card
+                        key={prompt._id}
+                        className={`cursor-pointer transition-all hover:shadow-md ${
+                          isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : ''
+                        }`}
+                        onClick={(e) => {
+                          // Nếu không có item nào được select, click vào card sẽ mở edit
+                          if (selectedWritingPrompts.length === 0) {
+                            openEditWritingDialog(prompt)
+                          } else {
+                            toggleWritingSelection(prompt._id, e)
+                          }
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <Badge className={prompt.type === 'text' ? 'bg-purple-100 text-purple-800' : 'bg-orange-100 text-orange-800'}>
+                                {prompt.type === 'text' ? '📝 Text' : '🖼️ Hình ảnh'}
+                              </Badge>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleWritingSelection(prompt._id, e)
+                              }}
+                              className="w-4 h-4 accent-blue-600"
+                            />
+                          </div>
+                          
+                          {prompt.image_url && (
+                            <div className="mb-3">
+                              <img
+                                src={prompt.image_url}
+                                alt="Writing prompt"
+                                className="w-full h-32 object-cover rounded-md"
+                              />
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            <div className="text-sm text-gray-600">
+                              <strong>Từ yêu cầu:</strong>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {(prompt.required_words || []).map((word, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {word}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              {new Date(prompt.createdAt || '').toLocaleDateString('vi-VN')}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
 
           {/* Create Vocabulary Set Dialog */}
@@ -911,6 +1274,283 @@ export default function PracticeManagementPage() {
                   Hủy
                 </Button>
                 <Button variant="destructive" onClick={handleDeleteDictations}>
+                  Xóa
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Create Writing Prompt Dialog */}
+          <Dialog open={showCreateWritingDialog} onOpenChange={setShowCreateWritingDialog}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Tạo đề writing mới</DialogTitle>
+                <DialogDescription>
+                  Tạo một đề writing có hình ảnh hoặc dạng text (phải nhập đúng 2 từ yêu cầu)
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Type */}
+                <div>
+                  <Label htmlFor="type">Loại đề *</Label>
+                  <Select
+                    value={createWritingForm.type}
+                    onValueChange={(value: 'text' | 'image') => setCreateWritingForm({ ...createWritingForm, type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">📝 Text</SelectItem>
+                      <SelectItem value="image">🖼️ Hình ảnh</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Required Words */}
+                <div>
+                  <Label htmlFor="required_words">2 từ yêu cầu * (cách nhau bởi dấu phẩy)</Label>
+                  <Input
+                    id="required_words"
+                    placeholder="Ví dụ: coffee, filter"
+                    value={createWritingForm.required_words}
+                    onChange={(e) => setCreateWritingForm({ ...createWritingForm, required_words: e.target.value })}
+                  />
+                  <p className="text-xs text-red-500 mt-1 font-medium">
+                    ⚠️ Phải nhập đúng 2 từ, cách nhau bởi dấu phẩy
+                  </p>
+                </div>
+
+                {/* Image Description */}
+                <div>
+                  <Label htmlFor="image_description">Mô tả tranh (không bắt buộc)</Label>
+                  <Textarea
+                    id="image_description"
+                    placeholder="Mô tả ngắn gọn về bức tranh..."
+                    value={createWritingForm.image_description}
+                    onChange={(e) => setCreateWritingForm({ ...createWritingForm, image_description: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+
+                {/* Image Upload */}
+                {createWritingForm.type === 'image' && (
+                  <div>
+                    <Label htmlFor="image">Tải ảnh lên * (.jpg, .jpeg, .png, .webp - tối đa 5MB)</Label>
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Lỗi',
+                              description: 'Ảnh không được vượt quá 5MB'
+                            })
+                            e.target.value = ''
+                            return
+                          }
+                          setCreateWritingForm({ ...createWritingForm, imageFile: file })
+                        }
+                      }}
+                    />
+                    {createWritingForm.imageFile && (
+                      <div className="mt-2">
+                        <img
+                          src={URL.createObjectURL(createWritingForm.imageFile)}
+                          alt="Preview"
+                          className="max-w-xs rounded-md"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowCreateWritingDialog(false)}>
+                  Hủy
+                </Button>
+                <Button
+                  onClick={handleCreateWritingPrompt}
+                  disabled={!createWritingForm.required_words || (createWritingForm.type === 'image' && !createWritingForm.imageFile)}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Tạo đề
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Edit Writing Prompt Dialog */}
+          <Dialog open={showEditWritingDialog} onOpenChange={setShowEditWritingDialog}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Chỉnh sửa đề writing</DialogTitle>
+                <DialogDescription>
+                  Cập nhật thông tin đề writing (phải nhập đúng 2 từ yêu cầu)
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Type */}
+                <div>
+                  <Label htmlFor="edit_type">Loại đề *</Label>
+                  <Select
+                    value={editWritingForm.type}
+                    onValueChange={(value: 'text' | 'image') => setEditWritingForm({ ...editWritingForm, type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">📝 Text</SelectItem>
+                      <SelectItem value="image">🖼️ Hình ảnh</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Required Words */}
+                <div>
+                  <Label htmlFor="edit_required_words">2 từ yêu cầu * (cách nhau bởi dấu phẩy)</Label>
+                  <Input
+                    id="edit_required_words"
+                    placeholder="Ví dụ: coffee, filter"
+                    value={editWritingForm.required_words}
+                    onChange={(e) => setEditWritingForm({ ...editWritingForm, required_words: e.target.value })}
+                  />
+                  <p className="text-xs text-red-500 mt-1 font-medium">
+                    ⚠️ Phải nhập đúng 2 từ, cách nhau bởi dấu phẩy
+                  </p>
+                </div>
+
+                {/* Image Description */}
+                <div>
+                  <Label htmlFor="edit_image_description">Mô tả tranh (không bắt buộc)</Label>
+                  <Textarea
+                    id="edit_image_description"
+                    placeholder="Mô tả ngắn gọn về bức tranh..."
+                    value={editWritingForm.image_description}
+                    onChange={(e) => setEditWritingForm({ ...editWritingForm, image_description: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+
+                {/* Current Image */}
+                {editingWritingPrompt?.image_url && !editWritingForm.removeImage && (
+                  <div>
+                    <Label>Ảnh hiện tại</Label>
+                    <div className="mt-2 relative">
+                      <img
+                        src={editingWritingPrompt.image_url}
+                        alt="Current"
+                        className="max-w-xs rounded-md"
+                      />
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => setEditWritingForm({ ...editWritingForm, removeImage: true })}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Xóa ảnh
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Image Upload */}
+                {editWritingForm.type === 'image' && (
+                  <div>
+                    <Label htmlFor="edit_image">
+                      {editingWritingPrompt?.image_url && !editWritingForm.removeImage ? 'Thay thế ảnh' : 'Tải ảnh lên *'} 
+                      {' '}(.jpg, .jpeg, .png, .webp - tối đa 5MB)
+                    </Label>
+                    <Input
+                      id="edit_image"
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.size > 5 * 1024 * 1024) {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Lỗi',
+                              description: 'Ảnh không được vượt quá 5MB'
+                            })
+                            e.target.value = ''
+                            return
+                          }
+                          setEditWritingForm({ ...editWritingForm, imageFile: file, removeImage: false })
+                        }
+                      }}
+                    />
+                    {editWritingForm.imageFile && (
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-600 mb-1">Ảnh mới:</p>
+                        <img
+                          src={URL.createObjectURL(editWritingForm.imageFile)}
+                          alt="Preview"
+                          className="max-w-xs rounded-md"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => {
+                  setShowEditWritingDialog(false)
+                  setEditingWritingPrompt(null)
+                  setEditWritingForm({
+                    type: 'image',
+                    required_words: '',
+                    imageFile: null,
+                    removeImage: false,
+                    image_description: ''
+                  })
+                }}>
+                  Hủy
+                </Button>
+                <Button
+                  onClick={handleEditWritingPrompt}
+                  disabled={!editWritingForm.required_words}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Cập nhật
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Writing Prompt Confirmation */}
+          <Dialog open={showDeleteWritingDialog} onOpenChange={setShowDeleteWritingDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertCircle className="w-5 h-5" />
+                  Xác nhận xóa đề writing
+                </DialogTitle>
+                <DialogDescription>
+                  Bạn có chắc chắn muốn xóa <strong>{selectedWritingPrompts.length}</strong> đề writing đã chọn?
+                  <br />
+                  <span className="text-red-600 text-sm mt-2 block">
+                    ⚠️ Hành động này không thể hoàn tác! Ảnh sẽ bị xóa khỏi S3.
+                  </span>
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteWritingDialog(false)}>
+                  Hủy
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteWritingPrompts}>
                   Xóa
                 </Button>
               </DialogFooter>

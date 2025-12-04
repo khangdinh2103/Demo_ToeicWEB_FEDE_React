@@ -70,7 +70,7 @@ export interface TestWithQuestions {
 export interface TestAttempt {
   _id: string;
   user_id: string;
-  test_id: string;
+  test_id: string | { _id: string; title: string; year?: number; source?: string };
   started_at: string;
   completed_at?: string;
   answers: TestAnswer[];

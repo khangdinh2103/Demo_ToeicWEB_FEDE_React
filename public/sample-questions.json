@@ -1,0 +1,68 @@
+{
+  "title": "Sample TOEIC Listening Test",
+  "description": "Part 1 - Photographs",
+  "duration_minutes": 10,
+  "questions": [
+    {
+      "id": "q1",
+      "questionText": "Look at the picture and choose the best description.",
+      "questionType": "multiple-choice",
+      "order": 1,
+      "options": [
+        "A man is reading a book",
+        "A woman is watering plants",
+        "People are having a meeting",
+        "Someone is cooking in the kitchen"
+      ],
+      "correctAnswer": 2,
+      "explanation": "The image shows people sitting around a table in a meeting.",
+      "points": 1,
+      "audio": "https://example.com/audio/q1.mp3",
+      "image": "https://example.com/images/q1.jpg",
+      "transcript": "In the photograph, several people are gathered around a conference table, engaged in what appears to be a business meeting."
+    },
+    {
+      "id": "q2",
+      "questionText": "What are the people doing?",
+      "questionType": "multiple-choice",
+      "order": 2,
+      "options": [
+        "They are standing in line",
+        "They are sitting at desks",
+        "They are walking outside",
+        "They are eating lunch"
+      ],
+      "correctAnswer": 1,
+      "explanation": "The people in the image are seated at individual desks.",
+      "points": 1,
+      "audio": "https://example.com/audio/q2.mp3",
+      "image": "https://example.com/images/q2.jpg",
+      "transcript": "The image depicts students or workers sitting at separate desks, possibly in a classroom or office setting."
+    },
+    {
+      "id": "q3",
+      "questionText": "Choose the best response: 'How was your weekend?'",
+      "questionType": "multiple-choice",
+      "order": 3,
+      "options": [
+        "It was great, thanks for asking!",
+        "I don't have a weekend",
+        "Yes, I do",
+        "About 2 days"
+      ],
+      "correctAnswer": 0,
+      "explanation": "Option A is the most natural and appropriate response to this question.",
+      "points": 1,
+      "audio": "https://example.com/audio/q3.mp3"
+    },
+    {
+      "id": "q4",
+      "questionText": "Fill in the blank: The meeting will start ___ 3 PM.",
+      "questionType": "fill-blank",
+      "order": 4,
+      "correctAnswers": ["at", "At"],
+      "explanation": "We use 'at' with specific times.",
+      "points": 1
+    }
+  ]
+}

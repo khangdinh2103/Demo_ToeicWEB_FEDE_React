@@ -25,6 +25,27 @@ export default function AIToolsPage() {
   const [isWritingTimerActive, setIsWritingTimerActive] = useState<boolean>(false)
   const [writingWordCount, setWritingWordCount] = useState<number>(0)
   
+  // Image Writing states
+  const [imagePrompt, setImagePrompt] = useState<any>(null)
+  const [imagePromptsList, setImagePromptsList] = useState<any[]>([])
+  const [imageCollocationSuggestions, setImageCollocationSuggestions] = useState<any[]>([])
+  const [imageWritingText, setImageWritingText] = useState("")
+  const [imageWritingResult, setImageWritingResult] = useState<any>(null)
+  const [isLoadingImagePrompts, setIsLoadingImagePrompts] = useState(false)
+  const [isLoadingImageSuggestions, setIsLoadingImageSuggestions] = useState(false)
+  const [isCheckingImageWriting, setIsCheckingImageWriting] = useState(false)
+  
+  // Email Writing states
+  const [emailPrompt, setEmailPrompt] = useState("")
+  const [emailKeywords, setEmailKeywords] = useState<any[]>([])
+  const [emailResponse, setEmailResponse] = useState("")
+  const [emailResult, setEmailResult] = useState<any>(null)
+  const [isGeneratingEmailPrompt, setIsGeneratingEmailPrompt] = useState(false)
+  const [isLoadingEmailKeywords, setIsLoadingEmailKeywords] = useState(false)
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false)
+  const [emailTimeLeft, setEmailTimeLeft] = useState<number>(600) // 10 phút = 600 giây
+  const [isEmailTimerActive, setIsEmailTimerActive] = useState<boolean>(false)
+  
   // Enhanced Speaking AI states
   const [isRecording, setIsRecording] = useState(false)
   const [recordedAudioFile, setRecordedAudioFile] = useState<File | null>(null)
@@ -139,6 +160,27 @@ export default function AIToolsPage() {
       if (timer) clearInterval(timer)
     }
   }, [isWritingTimerActive, writingTimeLeft])
+
+  // Email Timer Effect
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    
+    if (isEmailTimerActive && emailTimeLeft > 0) {
+      timer = setInterval(() => {
+        setEmailTimeLeft((prev) => {
+          if (prev <= 1) {
+            setIsEmailTimerActive(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (timer) clearInterval(timer)
+    }
+  }, [isEmailTimerActive, emailTimeLeft])
 
   // Enhanced Speaking AI Functions
   const startRecording = async () => {
@@ -278,6 +320,279 @@ export default function AIToolsPage() {
     if (audioStreamRef.current) {
       audioStreamRef.current.getTracks().forEach((track) => track.stop())
       audioStreamRef.current = null
+    }
+  }
+
+  // Image Writing handlers
+  const loadAllImagePrompts = async () => {
+    setIsLoadingImagePrompts(true)
+    setImagePromptsList([])
+
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/image-writing/all", {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể tải danh sách đề bài")
+      }
+
+      const result = await response.json()
+      console.log("📝 [AITools] Loaded image prompts:", result)
+      if (result.success && result.data) {
+        setImagePromptsList(result.data)
+        console.log("✅ [AITools] Set image prompts list:", result.data.length, "items")
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error loading prompts:", err)
+      alert(err.message || "Đã xảy ra lỗi khi tải danh sách đề bài")
+    } finally {
+      setIsLoadingImagePrompts(false)
+    }
+  }
+
+  const selectRandomImagePrompt = () => {
+    if (imagePromptsList.length === 0) return
+    const randomIndex = Math.floor(Math.random() * imagePromptsList.length)
+    selectImagePrompt(imagePromptsList[randomIndex])
+  }
+
+  const selectImagePrompt = (prompt: any) => {
+    setImagePrompt(prompt)
+    setImageCollocationSuggestions([])
+    setImageWritingText("")
+    setImageWritingResult(null)
+  }
+
+  const loadImageCollocationSuggestions = async () => {
+    if (!imagePrompt) return
+
+    setIsLoadingImageSuggestions(true)
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/image-writing/suggest-collocations", {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt_id: imagePrompt._id
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể tải gợi ý")
+      }
+
+      const result = await response.json()
+      console.log("💡 [AITools] Collocation response:", result)
+      if (result.data && result.data.suggestions) {
+        console.log("✅ [AITools] Setting suggestions:", result.data.suggestions)
+        setImageCollocationSuggestions(result.data.suggestions)
+        console.log("✅ [AITools] Suggestions count:", result.data.suggestions.length)
+      } else {
+        console.warn("⚠️ [AITools] No suggestions in response:", result)
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error loading suggestions:", err)
+      alert(err.message || "Đã xảy ra lỗi khi tải gợi ý")
+    } finally {
+      setIsLoadingImageSuggestions(false)
+    }
+  }
+
+  const checkImageWriting = async () => {
+    if (!imagePrompt || !imageWritingText.trim()) {
+      alert("Vui lòng viết câu mô tả trước khi chấm bài")
+      return
+    }
+
+    setIsCheckingImageWriting(true)
+    setImageWritingResult(null)
+
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/image-writing/check-sentence", {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt_id: imagePrompt._id,
+          sentence: imageWritingText
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể chấm bài")
+      }
+
+      const result = await response.json()
+      console.log("📊 [AITools] Check writing response:", result)
+      if (result.data) {
+        console.log("✅ [AITools] Setting writing result:", result.data)
+        setImageWritingResult(result.data)
+      } else {
+        console.warn("⚠️ [AITools] No data in response:", result)
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error checking writing:", err)
+      alert(err.message || "Đã xảy ra lỗi khi chấm bài")
+    } finally {
+      setIsCheckingImageWriting(false)
+    }
+  }
+
+  // Email Writing functions
+  const generateEmailPrompt = async () => {
+    setIsGeneratingEmailPrompt(true)
+    setEmailPrompt("")
+    setEmailKeywords([])
+    setEmailResponse("")
+    setEmailResult(null)
+
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/email-writing/generate-prompt", {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể tạo đề email")
+      }
+
+      const result = await response.json()
+      console.log("📧 [AITools] Email prompt response:", result)
+      if (result.data && result.data.full_email) {
+        setEmailPrompt(result.data.full_email)
+        console.log("✅ [AITools] Email prompt generated")
+      } else {
+        console.warn("⚠️ [AITools] No full_email in response:", result)
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error generating email prompt:", err)
+      alert(err.message || "Đã xảy ra lỗi khi tạo đề email")
+    } finally {
+      setIsGeneratingEmailPrompt(false)
+    }
+  }
+
+  const loadEmailKeywords = async () => {
+    if (!emailPrompt) {
+      alert("Vui lòng tạo đề email trước")
+      return
+    }
+
+    setIsLoadingEmailKeywords(true)
+
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/email-writing/suggest-keywords", {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt_email: emailPrompt
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể tải gợi ý từ khóa")
+      }
+
+      const result = await response.json()
+      console.log("🔑 [AITools] Email keywords response:", result)
+      if (result.data && result.data.keywords) {
+        setEmailKeywords(result.data.keywords)
+        console.log("✅ [AITools] Keywords loaded:", result.data.keywords.length)
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error loading keywords:", err)
+      alert(err.message || "Đã xảy ra lỗi khi tải từ khóa")
+    } finally {
+      setIsLoadingEmailKeywords(false)
+    }
+  }
+
+  const checkEmailWriting = async () => {
+    if (!emailPrompt || !emailResponse.trim()) {
+      alert("Vui lòng viết email phản hồi trước khi chấm bài")
+      return
+    }
+
+    setIsCheckingEmail(true)
+    setEmailResult(null)
+
+    try {
+      const token = localStorage.getItem('accessToken')
+      if (!token) {
+        alert("Bạn cần đăng nhập để sử dụng tính năng này.")
+        return
+      }
+
+      const response = await fetch("http://localhost:3090/api/student/writing/email-writing/check-email", {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          prompt_email: emailPrompt,
+          response_email: emailResponse
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error("Không thể chấm bài email")
+      }
+
+      const result = await response.json()
+      console.log("📊 [AITools] Check email response:", result)
+      if (result.data) {
+        setEmailResult(result.data)
+        console.log("✅ [AITools] Email result set")
+      }
+    } catch (err: any) {
+      console.error("❌ [AITools] Error checking email:", err)
+      alert(err.message || "Đã xảy ra lỗi khi chấm bài")
+    } finally {
+      setIsCheckingEmail(false)
     }
   }
 
@@ -461,27 +776,24 @@ export default function AIToolsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Describe Picture */}
                       <button
-                        onClick={() => setSelectedWritingType("describe")}
-                        className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-center relative"
+                        onClick={() => {
+                          setSelectedWritingType("describe")
+                          loadAllImagePrompts()
+                        }}
+                        className="p-6 border-2 border-blue-400 rounded-lg bg-blue-50 hover:bg-blue-100 transition-all text-center"
                       >
-                        <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-                          Đang phát triển
-                        </div>
                         <div className="text-4xl mb-3">🖼️</div>
                         <h4 className="font-semibold text-lg mb-2">Mô tả tranh</h4>
                         <p className="text-sm text-gray-600">
-                          Viết mô tả chi tiết về một bức tranh trong 8 phút
+                          Viết câu mô tả dựa vào tranh và 2 từ cho trước
                         </p>
                       </button>
 
                       {/* Email Response */}
                       <button
                         onClick={() => setSelectedWritingType("email")}
-                        className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-center relative"
+                        className="p-6 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-center"
                       >
-                        <div className="absolute top-2 right-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-                          Đang phát triển
-                        </div>
                         <div className="text-4xl mb-3">📧</div>
                         <h4 className="font-semibold text-lg mb-2">Phản hồi email</h4>
                         <p className="text-sm text-gray-600">
@@ -501,6 +813,506 @@ export default function AIToolsPage() {
                         </p>
                       </button>
                     </div>
+                  </div>
+                ) : selectedWritingType === "describe" ? (
+                  // Image Writing Interface
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-lg">Viết câu mô tả tranh</h3>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          setSelectedWritingType("")
+                          setImagePrompt(null)
+                          setImagePromptsList([])
+                          setImageCollocationSuggestions([])
+                          setImageWritingText("")
+                          setImageWritingResult(null)
+                        }}
+                      >
+                        ← Quay lại
+                      </Button>
+                    </div>
+
+                    {isLoadingImagePrompts ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Đang tải danh sách đề bài...</p>
+                      </div>
+                    ) : !imagePrompt && imagePromptsList.length > 0 ? (
+                      // Prompt Selection List
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-gray-700">Chọn đề bài:</h4>
+                          <Button
+                            onClick={selectRandomImagePrompt}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            🎲 Đề ngẫu nhiên
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {imagePromptsList.map((prompt, index) => (
+                            <button
+                              key={prompt._id}
+                              onClick={() => selectImagePrompt(prompt)}
+                              className="p-4 border-2 border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-left"
+                            >
+                              <div className="aspect-video mb-3 rounded overflow-hidden">
+                                <img 
+                                  src={prompt.image_url} 
+                                  alt={`Prompt ${index + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                              <div className="flex gap-2 flex-wrap">
+                                {prompt.required_words && prompt.required_words.map((word: string, idx: number) => (
+                                  <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded font-medium">
+                                    {word}
+                                  </span>
+                                ))}
+                              </div>
+                              {prompt.image_description && (
+                                <p className="text-xs text-gray-600 mt-2 line-clamp-2">{prompt.image_description}</p>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : imagePrompt ? (
+                      <>
+                        {/* Image Display */}
+                        <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+                          <div className="flex items-start justify-between mb-4">
+                            <h4 className="font-semibold text-gray-700">📸 Hình ảnh:</h4>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setImagePrompt(null)
+                                setImageCollocationSuggestions([])
+                                setImageWritingText("")
+                                setImageWritingResult(null)
+                              }}
+                            >
+                              ← Chọn đề khác
+                            </Button>
+                          </div>
+                          <img 
+                            src={imagePrompt.image_url} 
+                            alt="Writing prompt" 
+                            className="w-full max-w-2xl mx-auto rounded-lg shadow-md"
+                          />
+                        </div>
+
+                        {/* Required Words */}
+                        <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                          <h4 className="font-semibold text-blue-900 mb-2">📝 Yêu cầu: Viết câu sử dụng 2 từ sau</h4>
+                          <div className="flex gap-2">
+                            {imagePrompt.required_words && imagePrompt.required_words.map((word: string, idx: number) => (
+                              <span key={idx} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-lg">
+                                {word}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Suggestions Button */}
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={loadImageCollocationSuggestions}
+                            disabled={isLoadingImageSuggestions || imageCollocationSuggestions.length > 0}
+                            variant="outline"
+                            className="w-full"
+                          >
+                            {isLoadingImageSuggestions ? "Đang tải..." : imageCollocationSuggestions.length > 0 ? "✓ Đã tải gợi ý" : "💡 Gợi ý collocations"}
+                          </Button>
+                        </div>
+
+                        {/* Collocation Suggestions */}
+                        {imageCollocationSuggestions.length > 0 && (
+                          <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                            <h4 className="font-semibold text-green-900 mb-3">💡 Gợi ý Collocations:</h4>
+                            <div className="space-y-2">
+                              {imageCollocationSuggestions.map((suggestion, idx) => (
+                                <div key={idx} className="bg-white p-3 rounded border border-green-200">
+                                  <p className="font-semibold text-green-800">{suggestion.collocation}</p>
+                                  <p className="text-sm text-gray-600 italic">📖 {suggestion.meaning}</p>
+                                  <p className="text-sm text-gray-700 mt-1">"{suggestion.example}"</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Writing Input */}
+                        <div>
+                          <label className="block font-semibold mb-2">Viết câu mô tả của bạn:</label>
+                          <Textarea
+                            value={imageWritingText}
+                            onChange={(e) => setImageWritingText(e.target.value)}
+                            placeholder="Ví dụ: A man wearing a backpack walks across the bridge."
+                            className="min-h-[120px] text-base"
+                          />
+                          <p className="text-sm text-gray-500 mt-1">
+                            Số từ: {imageWritingText.trim().split(/\s+/).filter(w => w).length}
+                          </p>
+                        </div>
+
+                        {/* Check Button */}
+                        <Button
+                          onClick={checkImageWriting}
+                          disabled={isCheckingImageWriting || !imageWritingText.trim()}
+                          className="w-full bg-blue-600 hover:bg-blue-700"
+                          size="lg"
+                        >
+                          {isCheckingImageWriting ? "Đang chấm bài..." : "✓ Chấm bài"}
+                        </Button>
+
+                        {/* Results */}
+                        {imageWritingResult && (
+                          <div className="bg-white p-6 rounded-lg border-2 border-blue-300 space-y-4">
+                            <h3 className="font-bold text-xl text-blue-900 mb-4">📊 Kết quả đánh giá</h3>
+                            
+                            {/* Overall Score */}
+                            <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border border-blue-200">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-gray-700">Điểm tổng:</span>
+                                <span className="text-3xl font-bold text-blue-600">
+                                  {imageWritingResult.overall_score}/100
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Meaning */}
+                            {imageWritingResult.meaning && (
+                              <div className="border-l-4 border-blue-500 pl-4">
+                                <h4 className="font-semibold text-gray-800 mb-2">
+                                  {imageWritingResult.meaning.is_correct ? "✅" : "❌"} Ý nghĩa
+                                </h4>
+                                <p className="text-gray-700">{imageWritingResult.meaning.explanation}</p>
+                                {imageWritingResult.meaning.image_relevance && (
+                                  <p className="text-sm text-purple-700 mt-2 italic">
+                                    🖼️ Phù hợp với ảnh: {imageWritingResult.meaning.image_relevance}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Grammar */}
+                            {imageWritingResult.grammar && (
+                              <div className="border-l-4 border-green-500 pl-4">
+                                <h4 className="font-semibold text-gray-800 mb-2">
+                                  {imageWritingResult.grammar.is_correct ? "✅" : "❌"} Ngữ pháp
+                                </h4>
+                                <p className="text-gray-700">{imageWritingResult.grammar.explanation}</p>
+                              </div>
+                            )}
+
+                            {/* Vocabulary */}
+                            {imageWritingResult.vocabulary && (
+                              <div className="border-l-4 border-yellow-500 pl-4">
+                                <h4 className="font-semibold text-gray-800 mb-2">
+                                  {imageWritingResult.vocabulary.used_correctly ? "✅" : "❌"} Từ vựng
+                                </h4>
+                                <p className="text-gray-700">{imageWritingResult.vocabulary.explanation}</p>
+                              </div>
+                            )}
+
+                            {/* Correction */}
+                            {imageWritingResult.correction && (
+                              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                <h4 className="font-semibold text-green-900 mb-2">✍️ Câu gợi ý:</h4>
+                                <p className="text-green-800 font-medium text-lg italic">
+                                  "{imageWritingResult.correction.corrected_sentence}"
+                                </p>
+                                <p className="text-sm text-gray-600 mt-2">{imageWritingResult.correction.explanation}</p>
+                              </div>
+                            )}
+
+                            {/* Feedback Summary */}
+                            {imageWritingResult.feedback_summary && (
+                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                <h4 className="font-semibold text-blue-900 mb-2">💬 Nhận xét chung:</h4>
+                                <p className="text-gray-700">{imageWritingResult.feedback_summary}</p>
+                              </div>
+                            )}
+
+                            {/* Reset Button */}
+                            <Button
+                              onClick={() => {
+                                setImageWritingText("")
+                                setImageWritingResult(null)
+                                setImageCollocationSuggestions([])
+                                setImagePrompt(null)
+                              }}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              ← Chọn đề khác
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        <p>Chưa có đề bài nào. Vui lòng thêm đề từ trang quản lý.</p>
+                        <Button onClick={() => setSelectedWritingType("")} className="mt-4">
+                          ← Quay lại
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : selectedWritingType === "email" ? (
+                  // Email Writing Interface
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-semibold text-lg">Viết email phản hồi (TOEIC Writing Task 6)</h3>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          setSelectedWritingType("")
+                          setEmailPrompt("")
+                          setEmailKeywords([])
+                          setEmailResponse("")
+                          setEmailResult(null)
+                          setEmailTimeLeft(600)
+                          setIsEmailTimerActive(false)
+                        }}
+                      >
+                        ← Quay lại
+                      </Button>
+                    </div>
+
+                    {!emailPrompt ? (
+                      // Generate Prompt Button
+                      <div className="text-center py-12">
+                        <div className="text-6xl mb-4">📧</div>
+                        <h4 className="text-xl font-semibold mb-4">Bắt đầu luyện tập</h4>
+                        <p className="text-gray-600 mb-6">
+                          Nhấn nút dưới để tạo một đề email ngẫu nhiên phong cách TOEIC
+                        </p>
+                        <Button
+                          onClick={generateEmailPrompt}
+                          disabled={isGeneratingEmailPrompt}
+                          size="lg"
+                          className="px-8"
+                        >
+                          {isGeneratingEmailPrompt ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                              Đang tạo đề...
+                            </>
+                          ) : (
+                            "🎲 Tạo đề ngẫu nhiên"
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      // Email Writing Practice
+                      <div className="space-y-4">
+                        {/* Email Prompt */}
+                        <div className="bg-white p-6 rounded-lg border-2 border-blue-200">
+                          <h4 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                            <span>📨</span>
+                            <span>Email nhận được:</span>
+                          </h4>
+                          <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 whitespace-pre-wrap">
+                            {emailPrompt}
+                          </div>
+                        </div>
+
+                        {/* Timer */}
+                        <div className="flex items-center justify-between bg-blue-50 p-4 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">⏱️</span>
+                            <div>
+                              <p className="font-semibold text-gray-800">Thời gian làm bài</p>
+                              <p className="text-sm text-gray-600">TOEIC yêu cầu: 10 phút</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-bold text-blue-600">
+                              {Math.floor(emailTimeLeft / 60)}:{String(emailTimeLeft % 60).padStart(2, '0')}
+                            </p>
+                            <Button
+                              onClick={() => {
+                                if (isEmailTimerActive) {
+                                  setIsEmailTimerActive(false)
+                                } else {
+                                  setIsEmailTimerActive(true)
+                                  if (emailTimeLeft === 0) {
+                                    setEmailTimeLeft(600)
+                                  }
+                                }
+                              }}
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                            >
+                              {isEmailTimerActive ? "⏸ Tạm dừng" : emailTimeLeft === 0 ? "🔄 Đặt lại" : "▶ Bắt đầu"}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Keywords Suggestions */}
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-gray-800">💡 Gợi ý từ khóa hữu ích</h4>
+                            <Button
+                              onClick={loadEmailKeywords}
+                              disabled={isLoadingEmailKeywords || emailKeywords.length > 0}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {isLoadingEmailKeywords ? "Đang tải..." : emailKeywords.length > 0 ? "✓ Đã tải" : "Xem gợi ý"}
+                            </Button>
+                          </div>
+
+                          {emailKeywords.length > 0 && (
+                            <div className="space-y-3">
+                              {emailKeywords.map((keyword: any, idx: number) => (
+                                <div key={idx} className="bg-green-50 p-3 rounded-lg border border-green-200">
+                                  <p className="font-semibold text-green-900">{keyword.keyword}</p>
+                                  <p className="text-sm text-gray-700 mt-1">{keyword.meaning}</p>
+                                  <p className="text-sm text-gray-600 italic mt-1">"{keyword.usage_example}"</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Email Response Input */}
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-gray-800">✍️ Email phản hồi của bạn</h4>
+                            <span className="text-sm text-gray-600">
+                              {emailResponse.split(/\s+/).filter(Boolean).length} từ
+                            </span>
+                          </div>
+                          <Textarea
+                            value={emailResponse}
+                            onChange={(e) => setEmailResponse(e.target.value)}
+                            placeholder="Viết email phản hồi của bạn tại đây... (khuyến nghị 50-100 từ)"
+                            className="min-h-[300px] text-base"
+                          />
+                          <div className="mt-3 flex items-center justify-between">
+                            <p className="text-sm text-gray-600">
+                              💡 Lưu ý: Email cần rõ ràng, lịch sự và trả lời đầy đủ các câu hỏi
+                            </p>
+                            <Button
+                              onClick={checkEmailWriting}
+                              disabled={isCheckingEmail || emailResponse.trim().length === 0}
+                              size="lg"
+                            >
+                              {isCheckingEmail ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Đang chấm...
+                                </>
+                              ) : (
+                                "📊 Chấm bài"
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Email Result */}
+                        {emailResult && (
+                          <div className="bg-white p-6 rounded-lg border-2 border-green-500 space-y-4">
+                            {/* Overall Score & CEFR Level */}
+                            <div className="text-center pb-4 border-b-2 border-gray-200">
+                              <div className="flex items-center justify-center gap-4 mb-3">
+                                <div className="text-6xl font-bold text-green-600">
+                                  {emailResult.overall_score}/100
+                                </div>
+                                {emailResult.cefr_level && (
+                                  <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
+                                    <p className="text-sm font-medium">CEFR Level</p>
+                                    <p className="text-2xl font-bold">{emailResult.cefr_level}</p>
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-lg text-gray-700">
+                                {emailResult.overall_score >= 80 ? "🎉 Xuất sắc!" :
+                                 emailResult.overall_score >= 60 ? "👍 Tốt!" :
+                                 emailResult.overall_score >= 40 ? "💪 Cần cải thiện" :
+                                 "📚 Tiếp tục luyện tập"}
+                              </p>
+                            </div>
+
+                            {/* Criteria Scores */}
+                            {emailResult.criteria_scores && emailResult.criteria_scores.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900 text-lg">📋 Chi tiết đánh giá:</h4>
+                                {emailResult.criteria_scores.map((criteria: any, idx: number) => (
+                                  <div 
+                                    key={idx} 
+                                    className={`border-l-4 pl-4 ${
+                                      criteria.score >= 80 ? 'border-green-500' :
+                                      criteria.score >= 60 ? 'border-blue-500' :
+                                      criteria.score >= 40 ? 'border-yellow-500' :
+                                      'border-red-500'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h4 className="font-semibold text-gray-800">
+                                        {criteria.score >= 80 ? "✅" : criteria.score >= 60 ? "👍" : criteria.score >= 40 ? "⚠️" : "❌"} {criteria.criterion}
+                                      </h4>
+                                      <span className={`text-lg font-bold ${
+                                        criteria.score >= 80 ? 'text-green-600' :
+                                        criteria.score >= 60 ? 'text-blue-600' :
+                                        criteria.score >= 40 ? 'text-yellow-600' :
+                                        'text-red-600'
+                                      }`}>
+                                        {criteria.score}/100
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-700">{criteria.feedback}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Detailed Explanation */}
+                            {emailResult.detailed_explanation && (
+                              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                <h4 className="font-semibold text-blue-900 mb-2">💬 Nhận xét chi tiết:</h4>
+                                <p className="text-gray-700 whitespace-pre-wrap">{emailResult.detailed_explanation}</p>
+                              </div>
+                            )}
+
+                            {/* Conclusion */}
+                            {emailResult.conclusion && (
+                              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                <h4 className="font-semibold text-green-900 mb-2">🎯 Kết luận:</h4>
+                                <p className="text-gray-700">{emailResult.conclusion}</p>
+                              </div>
+                            )}
+
+                            {/* Reset Button */}
+                            <Button
+                              onClick={() => {
+                                setEmailPrompt("")
+                                setEmailKeywords([])
+                                setEmailResponse("")
+                                setEmailResult(null)
+                                setEmailTimeLeft(600)
+                                setIsEmailTimerActive(false)
+                              }}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              ← Tạo đề mới
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : selectedWritingType === "opinion" && !selectedWritingTopic ? (
                   // Opinion Topic Selection
