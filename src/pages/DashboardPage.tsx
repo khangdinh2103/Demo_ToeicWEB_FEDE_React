@@ -26,6 +26,7 @@ import { testApi } from "@/api/testApi"
 import type { TestAttempt } from "@/api/testApi"
 import { enrollmentApi, type Enrollment } from "@/api/enrollmentApi"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import MyScheduleCalendar from "@/components/MyScheduleCalendar"
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -47,22 +48,89 @@ export default function DashboardPage() {
   useEffect(() => {
     // Check if redirected from payment
     const paymentSuccess = searchParams.get('payment')
-    if (paymentSuccess === 'success') {
+    console.log('🔍 Dashboard mounted, payment param:', paymentSuccess)
+    
+    // Also check if there's a pending payment in localStorage (auto-verify)
+    const pendingPaymentId = localStorage.getItem('pending_payment_id')
+    const pendingPaymentIdsStr = localStorage.getItem('pending_payment_ids')
+    const pendingScheduleConfig = localStorage.getItem('pending_schedule_config')
+    const hasPendingPayment = pendingPaymentId || pendingPaymentIdsStr
+    
+    console.log('💳 Has pending payment:', hasPendingPayment)
+    console.log('📅 Has pending schedule config:', !!pendingScheduleConfig)
+    console.log('📦 Full localStorage:', {
+      pending_payment_id: pendingPaymentId,
+      pending_payment_ids: pendingPaymentIdsStr,
+      pending_schedule_config: pendingScheduleConfig ? JSON.parse(pendingScheduleConfig) : null
+    })
+    
+    if (paymentSuccess === 'success' || hasPendingPayment) {
+      console.log('✅ Payment success detected or pending payment found!')
       setActiveTab('courses')
       
       // Verify payment and create enrollment
       const verifyPayment = async () => {
+        // Kiểm tra cả pending_payment_ids (mới) và pending_payment_id (cũ) để tương thích ngược
+        const pendingPaymentIdsStr = localStorage.getItem('pending_payment_ids')
         const pendingPaymentId = localStorage.getItem('pending_payment_id')
-        if (pendingPaymentId) {
+        
+        console.log('📦 LocalStorage check:', {
+          pendingPaymentIdsStr,
+          pendingPaymentId
+        })
+        
+        let paymentIds: string[] = []
+        
+        if (pendingPaymentIdsStr) {
           try {
-            console.log('🔍 Verifying payment:', pendingPaymentId)
+            paymentIds = JSON.parse(pendingPaymentIdsStr)
+          } catch (e) {
+            console.error('Error parsing payment IDs:', e)
+          }
+        } else if (pendingPaymentId) {
+          // Fallback to old single payment ID
+          paymentIds = [pendingPaymentId]
+        }
+
+        console.log('💳 Payment IDs to verify:', paymentIds)
+
+        if (paymentIds.length > 0) {
+          try {
+            console.log('🔍 Verifying payments:', paymentIds)
             const { paymentApi } = await import('@/api/paymentApi')
-            const result = await paymentApi.verifyPayment(pendingPaymentId)
             
-            console.log('📦 Verification result:', result)
+            // Verify tất cả payments
+            const verificationResults = []
+            for (const paymentId of paymentIds) {
+              try {
+                const result = await paymentApi.verifyPayment(paymentId)
+                console.log(`📦 Verification result for ${paymentId}:`, result)
+                verificationResults.push(result)
+              } catch (error) {
+                console.error(`❌ Failed to verify payment ${paymentId}:`, error)
+                // Continue with other payments
+              }
+            }
             
-            if (result.success && result.data) {
-              console.log('✅ Payment verified, enrollment created:', result.data)
+            // Response structure: { success: boolean, data: {...}, message: "..." }
+            const successfulVerifications = verificationResults.filter(r => 
+              r && r.data && (r.success === true || r.data.status === 'success')
+            )
+            
+            console.log('🔍 Filtering verifications:', {
+              total: verificationResults.length,
+              successful: successfulVerifications.length,
+              results: verificationResults.map(r => ({
+                hasData: !!r.data,
+                success: r.success,
+                dataStatus: r.data?.status
+              }))
+            })
+            
+            if (successfulVerifications.length > 0) {
+              console.log(`✅ ${successfulVerifications.length} payments verified, enrollments created`)
+              
+              // NOTE: Schedule creation is handled outside this block to avoid duplication
               
               // Reload enrolled roadmaps
               try {
@@ -72,10 +140,11 @@ export default function DashboardPage() {
                 console.error('Error reloading enrollments:', e)
               }
               
-              alert('Thanh toán thành công! Bạn đã được ghi danh vào lộ trình.')
+              const enrolledCount = successfulVerifications.length
+              alert(`Thanh toán thành công! Bạn đã được ghi danh vào ${enrolledCount} lộ trình và lịch học đã được tạo.`)
             } else {
-              console.error('❌ Verification failed:', result)
-              alert(`Không thể xác nhận thanh toán: ${result.message || 'Vui lòng liên hệ hỗ trợ'}`)
+              console.error('❌ No successful verifications')
+              alert('Không thể xác nhận thanh toán. Vui lòng liên hệ hỗ trợ.')
             }
           } catch (error: any) {
             console.error('❌ Payment verification error:', error)
@@ -89,11 +158,40 @@ export default function DashboardPage() {
             alert(`Lỗi khi xác nhận thanh toán: ${errorMessage}`)
           } finally {
             localStorage.removeItem('pending_payment_id')
+            localStorage.removeItem('pending_payment_ids')
           }
         } else {
-          // No payment_id saved, just show generic success
-          console.log('⚠️ No pending payment ID found')
-          alert('Chào mừng trở lại!')
+          // No payment_id saved, but might still have schedule config to create
+          console.log('⚠️ No pending payment ID found, checking for schedule config...')
+        }
+        
+        // ALWAYS check for pending schedule config, even if no payment to verify
+        const scheduleConfigStr = localStorage.getItem('pending_schedule_config')
+        if (scheduleConfigStr) {
+          try {
+            const scheduleConfig = JSON.parse(scheduleConfigStr)
+            console.log('📅 Found pending schedule config, creating schedule...')
+            console.log('📋 Roadmap IDs:', scheduleConfig.roadmap_ids)
+            console.log('⚙️ Schedule settings:', scheduleConfig.schedule_config)
+            
+            const { learningScheduleApi } = await import('@/api/learningScheduleApi')
+            const scheduleResult = await learningScheduleApi.createSchedule(scheduleConfig)
+            
+            console.log('✅ Learning schedule created successfully:', scheduleResult)
+            localStorage.removeItem('pending_schedule_config')
+            alert('Lịch học đã được tạo thành công!')
+          } catch (scheduleError: any) {
+            console.error('❌ Failed to create schedule:', scheduleError)
+            console.error('Schedule error details:', {
+              status: scheduleError.response?.status,
+              message: scheduleError.response?.data?.message,
+              data: scheduleError.response?.data,
+              url: scheduleError.config?.url,
+              fullError: scheduleError
+            })
+            // KHÔNG xóa pending_schedule_config khi lỗi để có thể retry
+            alert(`Không thể tạo lịch học: ${scheduleError.response?.data?.message || scheduleError.message}`)
+          }
         }
       }
       
@@ -280,7 +378,7 @@ export default function DashboardPage() {
           {/* Main Content */}
           <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-5">
                 <TabsTrigger value="overview">Tổng quan</TabsTrigger>
                 <TabsTrigger value="courses">
                   Khóa học
@@ -288,6 +386,7 @@ export default function DashboardPage() {
                     <Badge className="ml-2" variant="secondary">{enrolledRoadmaps.length}</Badge>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="schedule">Lịch học</TabsTrigger>
                 <TabsTrigger value="practice">Luyện tập</TabsTrigger>
                 <TabsTrigger value="ai-tools">AI Tools</TabsTrigger>
               </TabsList>
@@ -525,6 +624,15 @@ export default function DashboardPage() {
                     </Link>
                   </div>
                 )}
+              </TabsContent>
+
+              <TabsContent value="schedule" className="space-y-6">
+                <MyScheduleCalendar 
+                  onOpenSettings={() => {
+                    const settingsBtn = document.getElementById('schedule-settings-btn')
+                    settingsBtn?.click()
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="practice" className="space-y-6">

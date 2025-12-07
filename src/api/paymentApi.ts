@@ -9,7 +9,8 @@ export type PaymentStatus = 'pending' | 'success' | 'failed' | 'cancelled';
 // ==================== INTERFACES ====================
 
 export interface CreatePaymentRequest {
-  roadmap_id: string;
+  roadmap_id?: string; // Single roadmap (legacy)
+  roadmap_ids?: string[]; // Multiple roadmaps (new)
   gateway: PaymentGateway;
   redirect_url?: string;
 }

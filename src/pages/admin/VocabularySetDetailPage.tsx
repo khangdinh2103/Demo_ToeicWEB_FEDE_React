@@ -106,7 +106,18 @@ export default function VocabularySetDetailPage() {
         description: 'AI đang tạo phiên âm, ví dụ, collocations và audio. Vui lòng đợi 10-20 giây...'
       })
       
-      await vocabularyApi.addFlashCards(id!, [formData])
+      // Transform camelCase to snake_case for backend
+      const backendCard = {
+        term: formData.term,
+        main_meaning: formData.mainMeaning,
+        example: formData.example || '',
+        ipa: formData.ipa || '',
+        collocations: formData.collocations || [],
+        audio_us_url: formData.audioUS_url || '',
+        audio_uk_url: formData.audioUK_url || ''
+      }
+      
+      await vocabularyApi.addFlashCards(id!, [backendCard])
       
       toast({
         title: '✅ Thành công',
@@ -132,7 +143,19 @@ export default function VocabularySetDetailPage() {
       if (editingCard?._id) {
         await vocabularyApi.deleteFlashCards(id!, [editingCard._id])
       }
-      await vocabularyApi.addFlashCards(id!, [formData])
+      
+      // Transform camelCase to snake_case for backend
+      const backendCard = {
+        term: formData.term,
+        main_meaning: formData.mainMeaning,
+        example: formData.example || '',
+        ipa: formData.ipa || '',
+        collocations: formData.collocations || [],
+        audio_us_url: formData.audioUS_url || '',
+        audio_uk_url: formData.audioUK_url || ''
+      }
+      
+      await vocabularyApi.addFlashCards(id!, [backendCard])
       
       toast({
         title: 'Thành công',
