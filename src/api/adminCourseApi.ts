@@ -32,7 +32,7 @@ export interface CreateLessonRequest {
   description?: string;
   order: number;
   is_free?: boolean;
-  created_by: string;
+  created_by?: string;
 }
 
 export interface UpdateLessonRequest {

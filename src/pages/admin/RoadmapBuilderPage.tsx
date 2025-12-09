@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Plus, BookOpen, Edit, Trash2, FileText, Video, Brain, ArrowLeft, Upload, Search, Filter, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, BookOpen, Edit, Trash2, FileText, Video, Brain, ArrowLeft, Upload, Search, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog'
 import { Input } from '../../components/ui/input'
@@ -509,7 +509,7 @@ export default function RoadmapBuilderPage() {
     e.dataTransfer.dropEffect = 'move'
   }
 
-  const handleDrop = async (e: React.DragEvent, targetKind: 'course' | 'lesson' | 'section', targetId: string, targetCourseId?: string, targetLessonId?: string) => {
+  const handleDrop = async (e: React.DragEvent, targetKind: 'course' | 'lesson' | 'section', targetId: string, _targetCourseId?: string, _targetLessonId?: string) => {
     e.preventDefault()
     e.stopPropagation()
     

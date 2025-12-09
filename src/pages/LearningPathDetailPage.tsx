@@ -389,7 +389,6 @@ export default function LearningPathDetailPage() {
 
   // Use roadmap data if available, otherwise use pathData
   const displayTitle = roadmap?.title || pathData?.title || "Lộ trình học"
-  const displayCourses = roadmap ? filteredCourses : (pathData?.courses || [])
 
   if (loading) {
     return (

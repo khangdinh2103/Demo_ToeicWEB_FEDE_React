@@ -24,19 +24,19 @@ import {
 } from 'lucide-react'
 import * as statisticsApi from '../../api/statisticsApi'
 
-type RevenueData = {
-  month: string
-  revenue: number
-  growth: number
-}
+// type RevenueData = {
+//   month: string
+//   revenue: number
+//   growth: number
+// }
 
-type UserStats = {
-  total: number
-  newThisMonth: number
-  active: number
-  premium: number
-  growthRate: number
-}
+// type UserStats = {
+//   total: number
+//   newThisMonth: number
+//   active: number
+//   premium: number
+//   growthRate: number
+// }
 
 type CourseStats = {
   total: number
@@ -46,13 +46,13 @@ type CourseStats = {
   averageRating: number
 }
 
-type PaymentStats = {
-  totalRevenue: number
-  monthlyRevenue: number
-  averageOrderValue: number
-  conversionRate: number
-  refundRate: number
-}
+// type PaymentStats = {
+//   totalRevenue: number
+//   monthlyRevenue: number
+//   averageOrderValue: number
+//   conversionRate: number
+//   refundRate: number
+// }
 
 export default function AnalyticsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month' | 'quarter'>('month')

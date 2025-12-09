@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { 
   Play, Pause, Volume2, VolumeX, Settings, Maximize, 
-  SkipBack, SkipForward, RotateCcw, RotateCw 
+  RotateCcw, RotateCw 
 } from "lucide-react"
 
 interface VideoPlayerProps {

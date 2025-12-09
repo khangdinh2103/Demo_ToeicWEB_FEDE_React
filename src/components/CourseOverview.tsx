@@ -1,14 +1,10 @@
 "use client"
 
-import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { 
-  BookOpen, Clock, Star, Users, Play, ArrowLeft, CheckCircle, 
+  Star, Play, ArrowLeft, CheckCircle, 
   Video, FileText, Award, Target, Calendar, Download,
   MessageCircle, Trophy, TrendingUp, Globe
 } from "lucide-react"

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '../components/ui/button'
-import { BookOpen, Image, Music, Trash2 } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 
 type Choice = { id: number; text: string; isCorrect?: boolean; explanation?: string; media?: string }
 type Section = {
