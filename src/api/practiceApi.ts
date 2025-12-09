@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:3090/api/admin'
+const API_BASE_URL = import.meta.env.VITE_API_URL 
+  ? `${import.meta.env.VITE_API_URL.replace('/api', '')}/api/admin`
+  : 'http://localhost:3090/api/admin'
 
 const getAuthHeader = () => {
   const token = localStorage.getItem('accessToken')
