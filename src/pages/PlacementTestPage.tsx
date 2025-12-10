@@ -21,11 +21,15 @@ export default function PlacementTestPage() {
     try {
       setLoading(true)
       setError(null)
+      console.log('🔍 Loading placement test...')
       const placementTest = await testApi.getPlacementTest()
+      console.log('✅ Placement test loaded:', placementTest)
       setTest(placementTest)
     } catch (err) {
-      const error = err as Error
-      setError(error.message || 'Không thể tải bài test đầu vào')
+      const error = err as any
+      console.error('❌ Error loading placement test:', error)
+      console.error('Error response:', error.response?.data)
+      setError(error.response?.data?.message || error.message || 'Không thể tải bài test đầu vào')
     } finally {
       setLoading(false)
     }

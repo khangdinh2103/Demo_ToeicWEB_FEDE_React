@@ -299,18 +299,24 @@ export const testApi = {
    * Tìm test có tên chứa "Placement Test" hoặc "Đánh giá trình độ"
    */
   getPlacementTest: async (): Promise<Test> => {
+    console.log('🔍 Fetching all tests to find placement test...')
     const response = await axiosInstance.get<ApiResponse<PaginatedResponse<Test>>>('/student/tests', {
       params: { limit: 100 }
     });
     
+    console.log('📋 Total tests found:', response.data.data.total)
+    console.log('📝 Tests:', response.data.data.data.map((t: Test) => ({ id: t._id, title: t.title })))
+    
     const placementTest = response.data.data.data.find((test: Test) => 
-      test.title.includes('Placement Test') || test.title.includes('Đánh giá trình độ')
+      test.title.includes('Placement Test') || test.title.includes('Đánh giá trình độ') || test.title.toLowerCase().includes('placement')
     );
     
     if (!placementTest) {
-      throw new Error('Không tìm thấy bài kiểm tra đầu vào');
+      console.error('❌ No placement test found in tests:', response.data.data.data.map((t: Test) => t.title))
+      throw new Error('Không tìm thấy bài kiểm tra đầu vào. Vui lòng liên hệ admin để tạo bài test.');
     }
     
+    console.log('✅ Found placement test:', placementTest)
     return placementTest;
   },
 };

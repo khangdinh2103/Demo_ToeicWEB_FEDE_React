@@ -11,6 +11,7 @@ export interface RoadmapItem {
   courses: string[] // Array of course IDs
   price: number
   discount_percentage: number
+  thumbnail?: string // Add thumbnail field
   is_published: boolean
   total_enrollments: number
   createdAt?: string
@@ -53,14 +54,18 @@ export const adminRoadmapApi = {
   },
 
   // POST /admin/roadmap - Tạo roadmap mới
-  createRoadmap: async (data: CreateRoadmapRequest) => {
-    const response = await axios.post(API_BASE_URL, data)
+  createRoadmap: async (data: CreateRoadmapRequest | FormData) => {
+    const response = await axios.post(API_BASE_URL, data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {}
+    })
     return response.data
   },
 
   // PATCH /admin/roadmap/:id - Cập nhật roadmap
-  updateRoadmap: async (id: string, data: UpdateRoadmapRequest) => {
-    const response = await axios.patch(`${API_BASE_URL}/${id}`, data)
+  updateRoadmap: async (id: string, data: UpdateRoadmapRequest | FormData) => {
+    const response = await axios.patch(`${API_BASE_URL}/${id}`, data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {}
+    })
     return response.data
   },
 

@@ -6,6 +6,7 @@ export interface RegisterRequest {
   name: string;
   gender: 'male' | 'female' | 'other';
   avatar?: File;
+  firebaseIdToken?: string;
 }
 
 export interface LoginRequest {
@@ -52,6 +53,10 @@ export const authApi = {
     
     if (data.avatar) {
       formData.append('avatar', data.avatar);
+    }
+
+    if (data.firebaseIdToken) {
+      formData.append('firebaseIdToken', data.firebaseIdToken);
     }
 
     const response = await axiosInstance.post('/student/auth/register', formData, {

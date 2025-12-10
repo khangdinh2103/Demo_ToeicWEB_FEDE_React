@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, MapPin, ToggleLeft, ToggleRight, Calendar, CheckCircle, Clock, Search, Filter, User, Loader2, Edit, BookOpen } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Trash2, MapPin, ToggleLeft, ToggleRight, Calendar, CheckCircle, Clock, Search, Filter, User, Loader2, Edit, BookOpen, Upload, X } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card'
@@ -45,6 +45,14 @@ export default function RoadmapManagementPage() {
     is_published: false
   })
   
+  // Thumbnail state
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
+  const [thumbnailPreview, setThumbnailPreview] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Form validation errors
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  
   // Load roadmaps from API
   useEffect(() => {
     loadRoadmaps()
@@ -54,7 +62,22 @@ export default function RoadmapManagementPage() {
     try {
       setLoading(true)
       const response = await adminRoadmapApi.getAllRoadmaps({ limit: 100 })
-      setRoadmaps(response.data?.data || [])
+      console.log('📦 API Response:', response)
+      console.log('📦 Response.data:', response.data)
+      console.log('📦 Response.data.data:', response.data?.data)
+      
+      // Flatten nested data structure if needed
+      const roadmapsData = response.data?.data?.data || response.data?.data || response.data || []
+      console.log('📦 Final roadmaps:', roadmapsData)
+      
+      // Check first roadmap for thumbnail field
+      if (roadmapsData.length > 0) {
+        console.log('🔍 First roadmap object:', roadmapsData[0])
+        console.log('🔍 First roadmap thumbnail:', roadmapsData[0].thumbnail)
+        console.log('🔍 All keys in first roadmap:', Object.keys(roadmapsData[0]))
+      }
+      
+      setRoadmaps(roadmapsData)
     } catch (error: any) {
       console.error('Failed to load roadmaps:', error)
       toast({
@@ -67,9 +90,71 @@ export default function RoadmapManagementPage() {
     }
   }
 
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {}
+    
+    if (!form.title?.trim()) {
+      errors.title = 'Tiêu đề không được để trống'
+    }
+    
+    if (!form.target_score || form.target_score <= 0 || isNaN(Number(form.target_score))) {
+      errors.target_score = 'Điểm mục tiêu phải là số dương hợp lệ'
+    }
+    
+    // Kiểm tra giá tiền phải là số hợp lệ và > 0
+    const priceValue = Number(form.price)
+    if (!form.price || isNaN(priceValue) || priceValue <= 0) {
+      errors.price = 'Giá tiền phải là số dương hợp lệ và lớn hơn 0'
+    }
+    
+    // Kiểm tra discount phải là số hợp lệ
+    if (form.discount_percentage !== undefined && form.discount_percentage !== null) {
+      const discount = Number(form.discount_percentage)
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        errors.discount_percentage = 'Giảm giá phải là số từ 0-100%'
+      }
+    }
+    
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+  
   const createRoadmap = async () => {
+    if (!validateForm()) {
+      toast({
+        title: 'Lỗi validation',
+        description: 'Vui lòng kiểm tra lại thông tin nhập vào',
+        variant: 'destructive',
+      })
+      return
+    }
+    
     try {
-      await adminRoadmapApi.createRoadmap(form as CreateRoadmapRequest)
+      const formData = new FormData()
+      formData.append('title', form.title || '')
+      if (form.description && form.description.trim()) {
+        formData.append('description', form.description)
+      }
+      formData.append('target_score', String(form.target_score || 0))
+      formData.append('price', String(form.price || 0))
+      formData.append('discount_percentage', String(form.discount_percentage || 0))
+      formData.append('is_published', String(form.is_published))
+      
+      if (thumbnailFile) {
+        formData.append('thumbnail', thumbnailFile)
+        console.log('📷 Thumbnail file:', thumbnailFile)
+        console.log('📷 File name:', thumbnailFile.name)
+        console.log('📷 File size:', thumbnailFile.size)
+        console.log('📷 File type:', thumbnailFile.type)
+      }
+      
+      // Debug FormData
+      console.log('📤 FormData entries:')
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ':', pair[1])
+      }
+      
+      await adminRoadmapApi.createRoadmap(formData as any)
       
       toast({
         title: 'Tạo lộ trình thành công',
@@ -93,7 +178,24 @@ export default function RoadmapManagementPage() {
     if (!editingRoadmap) return
     
     try {
-      await adminRoadmapApi.updateRoadmap(editingRoadmap._id, form as UpdateRoadmapRequest)
+      // Nếu có thumbnail mới, dùng FormData
+      if (thumbnailFile) {
+        const formData = new FormData()
+        formData.append('title', form.title || '')
+        if (form.description && form.description.trim()) {
+          formData.append('description', form.description)
+        }
+        formData.append('target_score', String(form.target_score || 0))
+        formData.append('price', String(form.price || 0))
+        formData.append('discount_percentage', String(form.discount_percentage || 0))
+        formData.append('is_published', String(form.is_published))
+        formData.append('thumbnail', thumbnailFile)
+        
+        await adminRoadmapApi.updateRoadmap(editingRoadmap._id, formData as any)
+      } else {
+        // Không có thumbnail mới, dùng JSON
+        await adminRoadmapApi.updateRoadmap(editingRoadmap._id, form as UpdateRoadmapRequest)
+      }
       
       toast({
         title: 'Cập nhật lộ trình thành công',
@@ -163,6 +265,55 @@ export default function RoadmapManagementPage() {
       discount_percentage: 0,
       is_published: false
     })
+    setThumbnailFile(null)
+    setThumbnailPreview('')
+    setFormErrors({})
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+  
+  const handleThumbnailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: 'Lỗi định dạng',
+        description: 'Chỉ chấp nhận file JPG, PNG hoặc WEBP',
+        variant: 'destructive',
+      })
+      return
+    }
+    
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File quá lớn',
+        description: 'Ảnh không được vượt quá 5MB',
+        variant: 'destructive',
+      })
+      return
+    }
+    
+    setThumbnailFile(file)
+    
+    // Create preview
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setThumbnailPreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+  
+  const removeThumbnail = () => {
+    setThumbnailFile(null)
+    setThumbnailPreview('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const openEditDialog = (roadmap: RoadmapItem) => {
@@ -255,7 +406,11 @@ export default function RoadmapManagementPage() {
                       placeholder="Ví dụ: Lộ Trình Cơ Bản 2 Kỹ Năng - Listening & Reading 450+" 
                       value={form.title} 
                       onChange={(e) => setForm({ ...form, title: e.target.value })} 
+                      className={formErrors.title ? 'border-red-500' : ''}
                     />
+                    {formErrors.title && (
+                      <p className="text-sm text-red-500">{formErrors.title}</p>
+                    )}
                   </div>
                   
                   <div className="grid gap-2">
@@ -269,15 +424,81 @@ export default function RoadmapManagementPage() {
                     />
                   </div>
                   
+                  {/* Thumbnail Upload */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="thumbnail">Hình ảnh đại diện</Label>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          ref={fileInputRef}
+                          id="thumbnail"
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          onChange={handleThumbnailChange}
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          {thumbnailFile ? 'Đổi ảnh' : 'Tải ảnh lên'}
+                        </Button>
+                        {thumbnailFile && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={removeThumbnail}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                      {thumbnailPreview && (
+                        <div className="relative w-full h-48 rounded-lg overflow-hidden border">
+                          <img 
+                            src={thumbnailPreview} 
+                            alt="Preview" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-500">
+                        Chấp nhận: JPG, PNG, WEBP. Tối đa 5MB
+                      </p>
+                    </div>
+                  </div>
+                  
                   <div className="grid gap-2">
                     <Label htmlFor="target_score">Điểm mục tiêu *</Label>
                     <Input 
                       id="target_score"
                       type="number" 
                       placeholder="450" 
+                      min="0"
                       value={form.target_score || ''} 
-                      onChange={(e) => setForm({ ...form, target_score: Number(e.target.value) || 0 })} 
+                      onChange={(e) => {
+                        const value = e.target.value
+                        // Chỉ cho phép số
+                        if (value === '' || /^\d+$/.test(value)) {
+                          setForm({ ...form, target_score: value === '' ? 0 : Number(value) })
+                        }
+                      }}
+                      onKeyPress={(e) => {
+                        // Chặn các ký tự không phải số
+                        if (!/[0-9]/.test(e.key)) {
+                          e.preventDefault()
+                        }
+                      }}
+                      className={formErrors.target_score ? 'border-red-500' : ''}
                     />
+                    {formErrors.target_score && (
+                      <p className="text-sm text-red-500">{formErrors.target_score}</p>
+                    )}
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">
@@ -287,9 +508,27 @@ export default function RoadmapManagementPage() {
                         id="price"
                         type="number" 
                         placeholder="1290000" 
+                        min="0"
+                        step="1000"
                         value={form.price || ''} 
-                        onChange={(e) => setForm({ ...form, price: Number(e.target.value) || 0 })} 
+                        onChange={(e) => {
+                          const value = e.target.value
+                          // Chỉ cho phép số, không cho nhập chữ
+                          if (value === '' || /^\d+$/.test(value)) {
+                            setForm({ ...form, price: value === '' ? 0 : Number(value) })
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          // Chặn các ký tự không phải số
+                          if (!/[0-9]/.test(e.key)) {
+                            e.preventDefault()
+                          }
+                        }}
+                        className={formErrors.price ? 'border-red-500' : ''}
                       />
+                      {formErrors.price && (
+                        <p className="text-sm text-red-500">{formErrors.price}</p>
+                      )}
                     </div>
                     
                     <div className="grid gap-2">
@@ -301,8 +540,24 @@ export default function RoadmapManagementPage() {
                         min="0"
                         max="100"
                         value={form.discount_percentage || ''} 
-                        onChange={(e) => setForm({ ...form, discount_percentage: Number(e.target.value) || 0 })} 
+                        onChange={(e) => {
+                          const value = e.target.value
+                          // Chỉ cho phép số từ 0-100
+                          if (value === '' || (/^\d+$/.test(value) && Number(value) <= 100)) {
+                            setForm({ ...form, discount_percentage: value === '' ? 0 : Number(value) })
+                          }
+                        }}
+                        onKeyPress={(e) => {
+                          // Chặn các ký tự không phải số
+                          if (!/[0-9]/.test(e.key)) {
+                            e.preventDefault()
+                          }
+                        }}
+                        className={formErrors.discount_percentage ? 'border-red-500' : ''}
                       />
+                      {formErrors.discount_percentage && (
+                        <p className="text-sm text-red-500">{formErrors.discount_percentage}</p>
+                      )}
                     </div>
                   </div>
                   
@@ -438,7 +693,17 @@ export default function RoadmapManagementPage() {
                 <TabsContent value="published">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filteredRoadmaps.filter(r => r.is_published).map(roadmap => (
-                      <Card key={roadmap._id} className="cursor-pointer hover:shadow-lg transition-shadow">
+                      <Card key={roadmap._id} className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden">
+                        {roadmap.thumbnail && (
+                          <div className="w-full h-48 overflow-hidden bg-gray-100">
+                            <img 
+                              src={roadmap.thumbnail} 
+                              alt={roadmap.title}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                              onClick={() => navigate(`/admin/roadmaps/${roadmap._id}`)}
+                            />
+                          </div>
+                        )}
                         <CardHeader onClick={() => navigate(`/admin/roadmaps/${roadmap._id}`)}>
                           <div className="flex items-center justify-between mb-2">
                             <Badge variant="secondary" className="bg-green-100 text-green-800">
@@ -549,7 +814,17 @@ export default function RoadmapManagementPage() {
                 <TabsContent value="unpublished">
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {filteredRoadmaps.filter(r => !r.is_published).map(roadmap => (
-                      <Card key={roadmap._id} className="cursor-pointer hover:shadow-lg transition-shadow">
+                      <Card key={roadmap._id} className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden">
+                        {roadmap.thumbnail && (
+                          <div className="w-full h-48 overflow-hidden bg-gray-100">
+                            <img 
+                              src={roadmap.thumbnail} 
+                              alt={roadmap.title}
+                              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                              onClick={() => navigate(`/admin/roadmaps/${roadmap._id}`)}
+                            />
+                          </div>
+                        )}
                         <CardHeader onClick={() => navigate(`/admin/roadmaps/${roadmap._id}`)}>
                           <div className="flex items-center justify-between mb-2">
                             <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
@@ -688,6 +963,54 @@ export default function RoadmapManagementPage() {
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 rows={4}
               />
+            </div>
+            
+            {/* Thumbnail Upload for Edit */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-thumbnail">Hình ảnh đại diện</Label>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="edit-thumbnail"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleThumbnailChange}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('edit-thumbnail')?.click()}
+                    className="flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {thumbnailFile || editingRoadmap?.thumbnail ? 'Đổi ảnh' : 'Tải ảnh lên'}
+                  </Button>
+                  {(thumbnailFile || thumbnailPreview) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={removeThumbnail}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+                {(thumbnailPreview || editingRoadmap?.thumbnail) && (
+                  <div className="relative w-full h-48 rounded-lg overflow-hidden border">
+                    <img 
+                      src={thumbnailPreview || editingRoadmap?.thumbnail} 
+                      alt="Preview" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-gray-500">
+                  Chấp nhận: JPG, PNG, WEBP. Tối đa 5MB
+                </p>
+              </div>
             </div>
             
             <div className="grid gap-2">

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,61 +10,157 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { BookOpen, Lock, Eye, EyeOff, User, Phone, Loader2, XCircle } from "lucide-react"
+import { BookOpen, Lock, Eye, EyeOff, User, Phone, Loader2, XCircle, AlertTriangle } from "lucide-react"
 import { Link } from "react-router-dom"
 import { authApi } from "@/api/authApi"
+import { setupRecaptcha, sendOTP, verifyOTP } from "@/config/firebase"
+import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [step, setStep] = useState<'form' | 'otp'>('form')
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
+  const [otpCode, setOtpCode] = useState("")
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null)
+  const [logMessages, setLogMessages] = useState<string[]>([])
   const [formData, setFormData] = useState({
-    fullName: "",
+    name: "",
     phone: "",
     password: "",
-    confirmPassword: "",
-    gender: "",
+    gender: "male" as 'male' | 'female' | 'other',
   })
+
+  const addLog = (message: string) => {
+    const time = new Date().toLocaleTimeString('vi-VN')
+    const logMsg = `[${time}] ${message}`
+    setLogMessages(prev => [...prev, logMsg])
+    console.log(logMsg)
+  }
+
+  useEffect(() => {
+    // Initialize reCAPTCHA when component mounts
+    if (!recaptchaVerifier) {
+      try {
+        addLog('Đang khởi tạo reCAPTCHA...')
+        const verifier = setupRecaptcha('recaptcha-container')
+        setRecaptchaVerifier(verifier)
+        addLog('✅ reCAPTCHA khởi tạo thành công')
+      } catch (error: any) {
+        addLog('❌ Lỗi khởi tạo reCAPTCHA: ' + error.message)
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // Validate
-    if (formData.password !== formData.confirmPassword) {
-      setError("Mật khẩu xác nhận không khớp")
-      return
-    }
 
     if (formData.password.length < 6) {
       setError("Mật khẩu phải có ít nhất 6 ký tự")
       return
     }
 
-    if (!formData.gender) {
-      setError("Vui lòng chọn giới tính")
+    setIsLoading(true)
+    setError("")
+    addLog('Bắt đầu flow đăng ký...')
+
+    try {
+      if (!recaptchaVerifier) {
+        throw new Error("reCAPTCHA chưa được khởi tạo")
+      }
+
+      addLog(`Gửi OTP tới ${formData.phone}`)
+
+      // Send OTP via Firebase
+      const result = await sendOTP(formData.phone, recaptchaVerifier)
+      setConfirmationResult(result)
+      setStep('otp')
+      setError("")
+      addLog('📩 Firebase đã gửi SMS OTP')
+    } catch (err: any) {
+      console.error("Error sending OTP:", err)
+      const errorMessage = err.message || "Không thể gửi mã OTP. Vui lòng thử lại."
+      setError(errorMessage)
+      addLog("❌ Lỗi: " + errorMessage)
+      
+      // Reset reCAPTCHA on error
+      if (recaptchaVerifier) {
+        try {
+          addLog('Đang khởi tạo lại reCAPTCHA...')
+          const verifier = setupRecaptcha('recaptcha-container')
+          setRecaptchaVerifier(verifier)
+        } catch (resetError) {
+          console.error('Error resetting reCAPTCHA:', resetError)
+        }
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!confirmationResult) {
+      setError("Vui lòng gửi mã OTP trước")
+      return
+    }
+
+    if (otpCode.length !== 6) {
+      setError("Mã OTP phải có 6 chữ số")
       return
     }
 
     setIsLoading(true)
     setError("")
+    addLog('Đang xác thực OTP...')
 
     try {
-      // Gửi số điện thoại nguyên bản mà user nhập, không format
-      await authApi.register({
+      // Verify OTP with Firebase
+      const user = await verifyOTP(confirmationResult, otpCode)
+      addLog('✔ OTP xác thực thành công')
+      
+      // Get Firebase ID token
+      const firebaseIdToken = await user.getIdToken()
+      addLog('🔑 Lấy Firebase ID token thành công')
+
+      addLog('Gửi dữ liệu sang backend...')
+
+      // Send registration to backend with Firebase token
+      const response = await authApi.register({
         phone: formData.phone,
         password: formData.password,
-        name: formData.fullName,
-        gender: formData.gender as 'male' | 'female' | 'other',
+        name: formData.name,
+        gender: formData.gender,
+        firebaseIdToken,
       })
 
-      // Chuyển sang trang xác thực OTP
-      navigate("/verify-otp", { state: { phone: formData.phone } })
+      addLog('📬 Backend trả về: ' + JSON.stringify(response, null, 2))
+      addLog('✅ Đăng ký thành công!')
+
+      // Registration successful - navigate to login
+      navigate("/login", { 
+        state: { 
+          message: "Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.",
+          phone: formData.phone
+        } 
+      })
     } catch (err: any) {
-      console.error("Register error:", err)
-      const errorMessage = err.response?.data?.message || "Đăng ký thất bại. Vui lòng thử lại."
+      console.error("Verify OTP error:", err)
+      let errorMessage = "Xác thực thất bại. Vui lòng thử lại."
+      
+      if (err.code === 'auth/invalid-verification-code') {
+        errorMessage = "Mã OTP không đúng. Vui lòng kiểm tra lại."
+      } else if (err.code === 'auth/code-expired') {
+        errorMessage = "Mã OTP đã hết hạn. Vui lòng gửi lại."
+      } else if (err.response?.data?.message) {
+        errorMessage = err.response.data.message
+      }
+      
       setError(errorMessage)
+      addLog("❌ Lỗi: " + errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -83,111 +179,111 @@ export default function RegisterPage() {
 
         <Card className="shadow-xl">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Đăng ký</CardTitle>
-            <CardDescription className="text-center">
-              Tạo tài khoản để bắt đầu hành trình chinh phục TOEIC
+            <CardTitle className="text-2xl font-bold text-center">
+              {step === 'form' ? '🔐 Đăng ký với OTP' : 'Xác thực OTP'}
+            </CardTitle>
+            <CardDescription className="text-center text-xs">
+              {step === 'form' 
+                ? 'Firebase Phone Auth – Tạo tài khoản với xác thực số điện thoại'
+                : `Nhập mã OTP đã được gửi đến số ${formData.phone}`
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Họ và tên</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Nguyễn Văn A"
-                    className="pl-10"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    required
-                  />
+            {/* Test Phone Warning */}
+            {step === 'form' && (
+              <div className="flex gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-yellow-800">
+                  <strong>⚠️ Đang dùng Test Phone Number:</strong>
+                  <br />
+                  • Thêm <code className="bg-yellow-100 px-1 rounded">+84966970852</code> với code <code className="bg-yellow-100 px-1 rounded">123456</code> vào "Phone numbers for testing" trong Firebase Console
+                  <br />
+                  • SMS sẽ không được gửi thực sự, chỉ nhập OTP test
                 </div>
               </div>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Số điện thoại</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="0123456789"
-                    className="pl-10"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            {/* reCAPTCHA container */}
+            <div id="recaptcha-container"></div>
+
+            {step === 'form' ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Số điện thoại</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="0966970852"
+                      className="pl-10"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Mật khẩu</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="khang123@"
+                      className="pl-10 pr-10"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      disabled={isLoading}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="name">Họ và tên</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Nguyễn Văn A"
+                      className="pl-10"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="gender">Giới tính</Label>
+                  <Select 
+                    value={formData.gender}
+                    onValueChange={(value) => setFormData({ ...formData, gender: value as 'male' | 'female' | 'other' })}
                     disabled={isLoading}
-                    required
-                  />
-                </div>
-                <p className="text-xs text-gray-500">
-                  Số điện thoại để nhận mã OTP
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gender">Giới tính</Label>
-                <Select 
-                  onValueChange={(value) => setFormData({ ...formData, gender: value })}
-                  disabled={isLoading}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn giới tính" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">Nam</SelectItem>
-                    <SelectItem value="female">Nữ</SelectItem>
-                    <SelectItem value="other">Khác</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Mật khẩu</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    className="pl-10 pr-10"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                    onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff /> : <Eye />}
-                  </button>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn giới tính" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="male">Nam</SelectItem>
+                      <SelectItem value="female">Nữ</SelectItem>
+                      <SelectItem value="other">Khác</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Xác nhận mật khẩu</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    className="pl-10 pr-10"
-                    value={formData.confirmPassword}
-                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-3 h-4 w-4 text-gray-400 hover:text-gray-600"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  >
-                    {showConfirmPassword ? <EyeOff /> : <Eye />}
-                  </button>
-                </div>
-              </div>
 
               {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -196,63 +292,112 @@ export default function RegisterPage() {
                 </div>
               )}
 
-              <div className="flex items-center space-x-2">
-                <input id="terms" type="checkbox" className="rounded border-gray-300" required disabled={isLoading} />
-                <Label htmlFor="terms" className="text-sm">
-                  Tôi đồng ý với{" "}
-                  <Link to="/terms" className="text-blue-600 hover:underline">
-                    Điều khoản sử dụng
-                  </Link>{" "}
-                  và{" "}
-                  <Link to="/privacy" className="text-blue-600 hover:underline">
-                    Chính sách bảo mật
-                  </Link>
-                </Label>
-              </div>
-
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Đang đăng ký...
+                    ⏳ Đang xử lý...
                   </>
                 ) : (
-                  "Đăng ký"
+                  "Đăng ký và nhận OTP"
                 )}
               </Button>
             </form>
+            ) : (
+              // OTP Verification Form
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="otpCode">Mã OTP</Label>
+                  <Input
+                    id="otpCode"
+                    type="text"
+                    placeholder="Nhập 6 chữ số"
+                    maxLength={6}
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    disabled={isLoading}
+                    required
+                    className="text-center text-2xl tracking-widest"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Mã OTP có hiệu lực trong 5 phút
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <XCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                    <p className="text-sm text-red-600">{error}</p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => {
+                      setStep('form')
+                      setOtpCode('')
+                      setError('')
+                    }}
+                    disabled={isLoading}
+                  >
+                    Quay lại
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Đang xác thực...
+                      </>
+                    ) : (
+                      "Xác nhận"
+                    )}
+                  </Button>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full"
+                  onClick={async () => {
+                    setIsLoading(true)
+                    setError("")
+                    addLog('Gửi lại mã OTP...')
+                    try {
+                      if (recaptchaVerifier) {
+                        const result = await sendOTP(formData.phone, recaptchaVerifier)
+                        setConfirmationResult(result)
+                        setOtpCode('')
+                        setError("")
+                        addLog('📩 Đã gửi lại mã OTP')
+                      }
+                    } catch (err: any) {
+                      const errorMsg = "Không thể gửi lại mã OTP. Vui lòng thử lại."
+                      setError(errorMsg)
+                      addLog("❌ " + errorMsg)
+                    } finally {
+                      setIsLoading(false)
+                    }
+                  }}
+                  disabled={isLoading}
+                >
+                  Gửi lại mã OTP
+                </Button>
+              </form>
+            )}
+
+            {/* Debug Log */}
+            {logMessages.length > 0 && (
+              <div className="mt-4 bg-black/90 text-green-400 p-3 rounded-lg text-xs font-mono max-h-64 overflow-y-auto">
+                {logMessages.map((msg, idx) => (
+                  <div key={idx}>{msg}</div>
+                ))}
+              </div>
+            )}
 
             <Separator />
-
-            <div className="space-y-2">
-              <Button variant="outline" className="w-full bg-transparent">
-                <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                Đăng ký với Google
-              </Button>
-              <Button variant="outline" className="w-full bg-transparent">
-                <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                </svg>
-                Đăng ký với Facebook
-              </Button>
-            </div>
 
             <div className="text-center">
               <span className="text-sm text-gray-600">
