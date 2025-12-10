@@ -10,7 +10,6 @@ export default function HomePage() {
   const navigate = useNavigate()
   const [featuredCourses, setFeaturedCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
     loadFeaturedCourses()
   }, [])
