@@ -116,6 +116,15 @@ export default function LearningPathPage() {
       if (result && result.recommendedRoadmaps) {
         setRecommendedRoadmaps(result.recommendedRoadmaps)
         setTips(result.tips || [])
+        
+        // Cập nhật điểm mục tiêu cho user
+        try {
+          await authApi.updateTargetScore(targetScore)
+          console.log('✅ Đã cập nhật điểm mục tiêu:', targetScore)
+        } catch (updateError) {
+          console.error('Error updating target score:', updateError)
+          // Không throw error, chỉ log vì đây là optional
+        }
       } else {
         console.error('Invalid response format:', result)
         alert('Dữ liệu trả về không đúng định dạng')

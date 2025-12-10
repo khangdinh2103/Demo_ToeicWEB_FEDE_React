@@ -177,4 +177,37 @@ export const authApi = {
   isAuthenticated: () => {
     return !!localStorage.getItem('accessToken');
   },
+
+  // Cập nhật điểm mục tiêu
+  updateTargetScore: async (targetScore: number): Promise<void> => {
+    const response = await axiosInstance.patch('/student/auth/update-target-score', { target_score: targetScore });
+    
+    // Cập nhật user trong localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      user.target_score = targetScore;
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+    
+    return response.data;
+  },
+
+  // Lấy thông tin user từ server
+  getProfile: async (): Promise<any> => {
+    const response = await axiosInstance.get('/student/auth/profile');
+    
+    // Cập nhật localStorage
+    if (response.data.data) {
+      const currentUser = authApi.getCurrentUser();
+      const updatedUser = {
+        ...currentUser,
+        ...response.data.data,
+        id: response.data.data._id
+      };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+    
+    return response.data.data;
+  },
 };

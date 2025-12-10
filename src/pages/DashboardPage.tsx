@@ -203,14 +203,21 @@ export default function DashboardPage() {
     const fetchDashboardData = async () => {
       try {
         setLoading(true)
-        const currentUser = authApi.getCurrentUser()
         
-        if (!currentUser) {
-          navigate('/login')
-          return
+        // Lấy thông tin user từ server để có target_score mới nhất
+        let currentUser;
+        try {
+          currentUser = await authApi.getProfile()
+          setUser(currentUser)
+        } catch (error) {
+          // Fallback to localStorage if API fails
+          currentUser = authApi.getCurrentUser()
+          if (!currentUser) {
+            navigate('/login')
+            return
+          }
+          setUser(currentUser)
         }
-        
-        setUser(currentUser)
 
         // Fetch recent test attempts
         const attemptsData = await testApi.getUserAttempts(1, 5)
@@ -239,7 +246,7 @@ export default function DashboardPage() {
 
           setStats({
             highestScore: highest,
-            targetScore: 850,
+            targetScore: currentUser?.target_score || 850,
             totalTests: completedAttempts.length,
             averageScore: average,
             improvement: improvement

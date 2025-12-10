@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { BookOpen, FileText, Users, Settings, BarChart3, Database, GraduationCap } from 'lucide-react'
+import { BookOpen, FileText, Users, BarChart3, GraduationCap } from 'lucide-react'
 
 export default function AdminMenu() {
   const loc = useLocation()
@@ -30,11 +30,6 @@ export default function AdminMenu() {
       icon: FileText
     },
     {
-      path: '/admin/question-bank',
-      label: 'Ngân hàng Câu hỏi',
-      icon: Database
-    },
-    {
       path: '/admin/practice',
       label: 'Quản lý Ôn luyện',
       icon: GraduationCap
@@ -48,11 +43,6 @@ export default function AdminMenu() {
       path: '/admin/analytics',
       label: 'Thống kê',
       icon: BarChart3
-    },
-    {
-      path: '/admin/settings',
-      label: 'Cài đặt',
-      icon: Settings
     }
   ]
 

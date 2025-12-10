@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BookOpen, Lock, Eye, EyeOff, User, Phone, Loader2, XCircle, AlertTriangle } from "lucide-react"
 import { Link } from "react-router-dom"
 import { authApi } from "@/api/authApi"
-import { setupRecaptcha, sendOTP, verifyOTP } from "@/config/firebase"
+import { setupRecaptcha, sendOTP, verifyOTP, normalizePhoneToLocal } from "@/config/firebase"
 import type { RecaptchaVerifier, ConfirmationResult } from "firebase/auth"
 
 export default function RegisterPage() {
@@ -125,9 +125,13 @@ export default function RegisterPage() {
 
       addLog('Gửi dữ liệu sang backend...')
 
+      // Chuẩn hóa số điện thoại về dạng 0... trước khi lưu DB
+      const normalizedPhone = normalizePhoneToLocal(formData.phone)
+      addLog(`📱 Phone chuẩn hóa: ${formData.phone} → ${normalizedPhone}`)
+
       // Send registration to backend with Firebase token
       const response = await authApi.register({
-        phone: formData.phone,
+        phone: normalizedPhone,
         password: formData.password,
         name: formData.name,
         gender: formData.gender,

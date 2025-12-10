@@ -30,6 +30,30 @@ export const setupRecaptcha = (containerId: string) => {
   });
 };
 
+// Normalize phone to local format (0...)
+export const normalizePhoneToLocal = (phone: string): string => {
+  // Loại bỏ khoảng trắng và ký tự đặc biệt
+  let cleaned = phone.replace(/[\s-().]/g, '')
+  
+  // Nếu bắt đầu bằng +84, chuyển về 0
+  if (cleaned.startsWith('+84')) {
+    return '0' + cleaned.substring(3)
+  }
+  
+  // Nếu bắt đầu bằng 84, chuyển về 0
+  if (cleaned.startsWith('84')) {
+    return '0' + cleaned.substring(2)
+  }
+  
+  // Nếu đã là 0, giữ nguyên
+  if (cleaned.startsWith('0')) {
+    return cleaned
+  }
+  
+  // Mặc định thêm 0 phía trước
+  return '0' + cleaned
+}
+
 // Send OTP to phone number
 export const sendOTP = async (phoneNumber: string, recaptchaVerifier: RecaptchaVerifier) => {
   try {

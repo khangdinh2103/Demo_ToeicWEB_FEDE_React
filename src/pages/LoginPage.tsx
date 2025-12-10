@@ -24,28 +24,28 @@ export default function LoginPage() {
     password: "",
   })
 
-  // Hàm chuẩn hóa số điện thoại về định dạng +84
+  // Hàm chuẩn hóa số điện thoại về định dạng 0...
   const formatPhoneNumber = (phone: string): string => {
     // Loại bỏ khoảng trắng và ký tự đặc biệt
     let cleaned = phone.replace(/[\s-().]/g, '')
     
-    // Nếu đã có +84, giữ nguyên
+    // Nếu bắt đầu bằng +84, chuyển về 0
     if (cleaned.startsWith('+84')) {
+      return '0' + cleaned.substring(3)
+    }
+    
+    // Nếu bắt đầu bằng 84, chuyển về 0
+    if (cleaned.startsWith('84')) {
+      return '0' + cleaned.substring(2)
+    }
+    
+    // Nếu đã là 0, giữ nguyên
+    if (cleaned.startsWith('0')) {
       return cleaned
     }
     
-    // Nếu bắt đầu bằng 84, thêm dấu +
-    if (cleaned.startsWith('84')) {
-      return '+' + cleaned
-    }
-    
-    // Nếu bắt đầu bằng 0, thay thế bằng +84
-    if (cleaned.startsWith('0')) {
-      return '+84' + cleaned.substring(1)
-    }
-    
-    // Mặc định thêm +84 phía trước
-    return '+84' + cleaned
+    // Mặc định thêm 0 phía trước
+    return '0' + cleaned
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
