@@ -8,6 +8,7 @@ import AIToolsPage from './pages/AIToolsPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import VerifyOtpPage from './pages/VerifyOtpPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import PlacementTestPage from './pages/PlacementTestPage'
 import PlacementTestResultPage from './pages/PlacementTestResultPage'
 import DashboardPage from './pages/DashboardPage'
@@ -77,6 +78,7 @@ function App() {
           {/* Pages without Navbar (Auth pages) */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/verify-otp" element={<VerifyOtpPage />} />
           
           {/* Admin pages - Protected (Admin only) */}

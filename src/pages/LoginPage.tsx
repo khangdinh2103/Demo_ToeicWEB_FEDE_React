@@ -24,18 +24,46 @@ export default function LoginPage() {
     password: "",
   })
 
+  // Hàm chuẩn hóa số điện thoại về định dạng +84
+  const formatPhoneNumber = (phone: string): string => {
+    // Loại bỏ khoảng trắng và ký tự đặc biệt
+    let cleaned = phone.replace(/[\s-().]/g, '')
+    
+    // Nếu đã có +84, giữ nguyên
+    if (cleaned.startsWith('+84')) {
+      return cleaned
+    }
+    
+    // Nếu bắt đầu bằng 84, thêm dấu +
+    if (cleaned.startsWith('84')) {
+      return '+' + cleaned
+    }
+    
+    // Nếu bắt đầu bằng 0, thay thế bằng +84
+    if (cleaned.startsWith('0')) {
+      return '+84' + cleaned.substring(1)
+    }
+    
+    // Mặc định thêm +84 phía trước
+    return '+84' + cleaned
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
     try {
+      // Chuẩn hóa số điện thoại về +84
+      const formattedPhone = formatPhoneNumber(formData.phone)
+      console.log('📱 Phone format:', formData.phone, '→', formattedPhone)
+      
       let response;
 
       // Thử đăng nhập với Admin API trước
       try {
         response = await authApi.adminLogin({
-          phone: formData.phone,
+          phone: formattedPhone,
           password: formData.password,
         })
         console.log('✅ Admin API response:', response)
@@ -43,7 +71,7 @@ export default function LoginPage() {
         // Nếu không phải admin, thử đăng nhập Student
         console.log('Không phải admin, thử student API...')
         response = await authApi.login({
-          phone: formData.phone,
+          phone: formattedPhone,
           password: formData.password,
         })
         console.log('✅ Student API response:', response)
