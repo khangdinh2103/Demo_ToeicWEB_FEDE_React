@@ -25,20 +25,12 @@ export default function RegisterPage() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
   const [otpCode, setOtpCode] = useState("")
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null)
-  const [logMessages, setLogMessages] = useState<string[]>([])
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
     password: "",
     gender: "male" as 'male' | 'female' | 'other',
   })
-
-  const addLog = (message: string) => {
-    const time = new Date().toLocaleTimeString('vi-VN')
-    const logMsg = `[${time}] ${message}`
-    setLogMessages(prev => [...prev, logMsg])
-    console.log(logMsg)
-  }
 
   useEffect(() => {
     // Initialize reCAPTCHA when component mounts
@@ -62,26 +54,21 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     setError("")
-    addLog('Bắt đầu flow đăng ký...')
 
     try {
       if (!recaptchaVerifier) {
         throw new Error("reCAPTCHA chưa được khởi tạo")
       }
 
-      addLog(`Gửi OTP tới ${formData.phone}`)
-
       // Send OTP via Firebase
       const result = await sendOTP(formData.phone, recaptchaVerifier)
       setConfirmationResult(result)
       setStep('otp')
       setError("")
-      addLog('📩 Firebase đã gửi SMS OTP')
     } catch (err: any) {
       console.error("Error sending OTP:", err)
       const errorMessage = err.message || "Không thể gửi mã OTP. Vui lòng thử lại."
       setError(errorMessage)
-      addLog("❌ Lỗi: " + errorMessage)
       
       // Reset reCAPTCHA on error
       if (recaptchaVerifier) {
@@ -112,34 +99,25 @@ export default function RegisterPage() {
 
     setIsLoading(true)
     setError("")
-    addLog('Đang xác thực OTP...')
 
     try {
       // Verify OTP with Firebase
       const user = await verifyOTP(confirmationResult, otpCode)
-      addLog('✔ OTP xác thực thành công')
       
       // Get Firebase ID token
       const firebaseIdToken = await user.getIdToken()
-      addLog('🔑 Lấy Firebase ID token thành công')
-
-      addLog('Gửi dữ liệu sang backend...')
 
       // Chuẩn hóa số điện thoại về dạng 0... trước khi lưu DB
       const normalizedPhone = normalizePhoneToLocal(formData.phone)
-      addLog(`📱 Phone chuẩn hóa: ${formData.phone} → ${normalizedPhone}`)
 
       // Send registration to backend with Firebase token
-      const response = await authApi.register({
+      await authApi.register({
         phone: normalizedPhone,
         password: formData.password,
         name: formData.name,
         gender: formData.gender,
         firebaseIdToken,
       })
-
-      addLog('📬 Backend trả về: ' + JSON.stringify(response, null, 2))
-      addLog('✅ Đăng ký thành công!')
 
       // Registration successful - navigate to login
       navigate("/login", { 
@@ -161,7 +139,6 @@ export default function RegisterPage() {
       }
       
       setError(errorMessage)
-      addLog("❌ Lỗi: " + errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -351,19 +328,16 @@ export default function RegisterPage() {
                   onClick={async () => {
                     setIsLoading(true)
                     setError("")
-                    addLog('Gửi lại mã OTP...')
                     try {
                       if (recaptchaVerifier) {
                         const result = await sendOTP(formData.phone, recaptchaVerifier)
                         setConfirmationResult(result)
                         setOtpCode('')
                         setError("")
-                        addLog('📩 Đã gửi lại mã OTP')
                       }
                     } catch (err: any) {
                       const errorMsg = "Không thể gửi lại mã OTP. Vui lòng thử lại."
                       setError(errorMsg)
-                      addLog("❌ " + errorMsg)
                     } finally {
                       setIsLoading(false)
                     }
@@ -373,15 +347,6 @@ export default function RegisterPage() {
                   Gửi lại mã OTP
                 </Button>
               </form>
-            )}
-
-            {/* Debug Log */}
-            {logMessages.length > 0 && (
-              <div className="mt-4 bg-black/90 text-green-400 p-3 rounded-lg text-xs font-mono max-h-64 overflow-y-auto">
-                {logMessages.map((msg, idx) => (
-                  <div key={idx}>{msg}</div>
-                ))}
-              </div>
             )}
 
             <Separator />
