@@ -380,29 +380,38 @@ export default function MyScheduleCalendar({ onOpenSettings }: MyScheduleCalenda
                     {dayCell.lessons.map((lesson: EnrichedLesson, idx) => {
                       const isCompleted = lesson.progress?.is_completed || lesson.completed
                       const progress = lesson.completionPercentage || 0
+                      const courseId = typeof lesson.course_id === 'string' ? lesson.course_id : lesson.course_id?._id
+                      const lessonId = typeof lesson.lesson_id === 'string' ? lesson.lesson_id : lesson.lesson_id?._id
+                      
+                      // Hàm điều hướng đến bài học
+                      const handleNavigateToLesson = () => {
+                        if (courseId && lessonId) {
+                          window.location.href = `/courses/${courseId}?enrolled=true&lesson=${lessonId}`
+                        }
+                      }
                       
                       return (
                         <div
                           key={idx}
-                          onClick={() => !isCompleted && handleCompleteLesson(lesson)}
+                          onClick={handleNavigateToLesson}
                           className={`p-1.5 rounded text-[10px] cursor-pointer transition-all ${
                             isCompleted
-                              ? 'bg-gray-300 text-gray-600 opacity-60'
+                              ? 'bg-gray-400 text-gray-700 opacity-70 hover:opacity-90'
                               : progress > 0
                                 ? 'bg-yellow-50 text-yellow-800 border border-yellow-300 hover:bg-yellow-100'
                                 : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 hover:shadow-sm'
                           }`}
                           title={
                             isCompleted 
-                              ? 'Đã hoàn thành' 
+                              ? 'Đã hoàn thành - Click để xem lại' 
                               : progress > 0
-                                ? `Đang học: ${progress}%`
-                                : 'Chưa bắt đầu'
+                                ? `Đang học: ${progress}% - Click để tiếp tục`
+                                : 'Chưa bắt đầu - Click để học'
                           }
                         >
                           <div className="flex items-center gap-1">
                             {isCompleted ? (
-                              <CheckCircle className="h-3 w-3 text-green-600 flex-shrink-0" />
+                              <CheckCircle className="h-3 w-3 text-green-700 flex-shrink-0" />
                             ) : progress > 0 ? (
                               <RefreshCw className="h-3 w-3 flex-shrink-0 text-yellow-600" />
                             ) : (
