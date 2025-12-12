@@ -416,7 +416,27 @@ export default function VocabularyFlashCard({ cards, onComplete }: VocabularyFla
                                 >
                                   {phoneme.accuracy.toFixed(0)}%
                                 </Badge>
+                                {phoneme.audioUrl && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const audio = new Audio(phoneme.audioUrl);
+                                      audio.play();
+                                    }}
+                                    className="h-6 w-6 p-0"
+                                    title="Nghe phát âm chuẩn"
+                                  >
+                                    <Volume2 className="h-3 w-3" />
+                                  </Button>
+                                )}
                               </div>
+                              {phoneme.category && (
+                                <p className="text-xs text-blue-600 mb-1">
+                                  📚 {phoneme.category}
+                                </p>
+                              )}
                               <p className="text-sm">{phoneme.feedback}</p>
                             </div>
                           </div>

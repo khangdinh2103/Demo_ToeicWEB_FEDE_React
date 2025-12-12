@@ -48,6 +48,8 @@ export interface PronunciationResult {
       altPh?: string;
       diff?: number;
       feedback: string;
+      category?: string;
+      audioUrl?: string;
       NBestPhonemes?: any[];
     }>;
   }>;
