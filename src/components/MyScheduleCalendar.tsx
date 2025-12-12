@@ -186,24 +186,6 @@ export default function MyScheduleCalendar({ onOpenSettings }: MyScheduleCalenda
 
     return weeks
   }
-
-  const handleCompleteLesson = async (lesson: ScheduledLesson) => {
-    if (lesson.completed) return
-
-    try {
-      const lessonId = typeof lesson.lesson_id === 'string' ? lesson.lesson_id : lesson.lesson_id._id
-      const sectionId = lesson.section_id
-      
-      await learningScheduleApi.completeLesson({
-        lesson_id: lessonId,
-        section_id: sectionId
-      })
-      await loadSchedule()
-    } catch (error) {
-      console.error('Error completing lesson:', error)
-      alert('Lỗi khi đánh dấu hoàn thành')
-    }
-  }
   
   const getLessonTitle = (lesson: ScheduledLesson): string => {
     if (typeof lesson.lesson_id === 'object' && lesson.lesson_id.title) {
