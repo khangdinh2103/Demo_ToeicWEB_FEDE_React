@@ -85,7 +85,7 @@ export default function TestResultPage() {
 
   const result = {
     testTitle: (attempt.test_id as any)?.title || "TOEIC Practice Test",
-    totalQuestions: attempt.answers.length, // Số câu thực tế làm, không phải total_questions từ test
+    totalQuestions: attempt.total_questions, // Tổng số câu của bài test
     correctAnswers: attempt.correct_answers || 0,
     listeningScore: attempt.listening_score || 0,
     readingScore: attempt.reading_score || 0,
@@ -98,9 +98,9 @@ export default function TestResultPage() {
       {
         part: 0,
         correct: attempt.correct_answers || 0,
-        total: attempt.answers.length,
-        percentage: attempt.answers.length > 0 
-          ? Math.round(((attempt.correct_answers || 0) / attempt.answers.length) * 100)
+        total: attempt.total_questions,
+        percentage: attempt.total_questions > 0 
+          ? Math.round(((attempt.correct_answers || 0) / attempt.total_questions) * 100)
           : 0
       }
     ] // Tạm thời hiển thị tổng thể, không chia theo part
