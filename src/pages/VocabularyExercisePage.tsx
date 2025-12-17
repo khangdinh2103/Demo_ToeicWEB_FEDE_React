@@ -7,6 +7,7 @@ import { vocabularyApi, normalizeId } from "@/api/vocabularyApi";
 import type { VocabularySet, FlashCard } from "@/api/vocabularyApi";
 import { vocabularyProgressApi } from "@/api/vocabularyProgressApi";
 import { getMyCustomVocabularySetById } from "@/api/studentVocabularyApi";
+import { personalVocabularyApi } from "@/api/personalVocabularyApi";
 import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -33,12 +34,14 @@ export default function VocabularyExercisePage() {
   const { setId: rawSetId } = useParams();
   const location = useLocation();
   const isCustomSet = location.pathname.includes("/my-vocabulary/");
+  const isPersonalSet = rawSetId === "personal" || location.pathname.includes("/vocabulary/personal/");
   
   const setId = useMemo(() => {
+    if (isPersonalSet) return "personal";
     const normalized = normalizeId(rawSetId || "");
-    console.log("🔑 rawSetId:", rawSetId, "→ normalized:", normalized, "isCustom:", isCustomSet);
+    console.log("🔑 rawSetId:", rawSetId, "→ normalized:", normalized, "isCustom:", isCustomSet, "isPersonal:", isPersonalSet);
     return normalized;
-  }, [rawSetId, isCustomSet]);
+  }, [rawSetId, isCustomSet, isPersonalSet]);
   
   const navigate = useNavigate();
 
@@ -55,10 +58,11 @@ export default function VocabularyExercisePage() {
 
   // Load progress
   useEffect(() => {
-    if (setId) {
+    // Skip progress for personal vocabulary (không có ObjectId)
+    if (setId && !isPersonalSet) {
       loadProgress();
     }
-  }, [setId]);
+  }, [setId, isPersonalSet]);
 
   const loadProgress = async () => {
     try {
@@ -89,7 +93,7 @@ export default function VocabularyExercisePage() {
       return;
     }
 
-    console.log("🔄 Starting fetch for setId:", setId, "isCustom:", isCustomSet);
+    console.log("🔄 Starting fetch for setId:", setId, "isCustom:", isCustomSet, "isPersonal:", isPersonalSet);
     const fetchData = async () => {
       try {
         setIsLoading(true);
@@ -97,7 +101,10 @@ export default function VocabularyExercisePage() {
         console.log("🔍 Fetching setId:", setId);
         
         let fullSet: any;
-        if (isCustomSet) {
+        if (isPersonalSet) {
+          // Fetch from personal vocabulary API
+          fullSet = await personalVocabularyApi.getAsVocabularySet();
+        } else if (isCustomSet) {
           // Fetch from custom vocabulary API
           fullSet = await getMyCustomVocabularySetById(setId);
         } else {
@@ -169,6 +176,20 @@ export default function VocabularyExercisePage() {
   }
 
   const cards = activeSet.cards || [];
+  console.log("🎴 Rendering with cards:", cards.length, cards);
+
+  if (cards.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <Card className="p-6 max-w-md text-center">
+          <p className="text-gray-600 mb-4">Bộ từ vựng này chưa có từ nào</p>
+          <Button variant="outline" onClick={() => navigate("/practice")}>
+            ← Quay lại
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -185,7 +206,7 @@ export default function VocabularyExercisePage() {
                 Luyện tập
               </Link>
               <span className="text-gray-300">/</span>
-              <span className="text-gray-900 font-medium">{activeSet.title}</span>
+              <span className="text-gray-900 font-medium">{activeSet.name || activeSet.title}</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => navigate("/practice")}>
               ← Quay lại

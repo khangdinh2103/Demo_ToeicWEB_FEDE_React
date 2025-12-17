@@ -206,6 +206,29 @@ export default function PracticePage() {
           {/* Vocabulary Practice */}
           <TabsContent value="vocabulary">
             <div className="space-y-6">
+              {/* Personal Vocabulary Button */}
+              <Card className="p-6 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      📚 Bộ Từ Cá Nhân
+                    </h3>
+                    <p className="text-gray-600">
+                      Lưu và ôn tập lại các từ vựng bạn đã thu thập từ bài test, bài đọc
+                    </p>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={() => navigate("/practice/personal-vocabulary")}
+                    className="ml-4"
+                    variant="outline"
+                  >
+                    <BookMarked className="h-5 w-5 mr-2" />
+                    Xem Bộ Từ
+                  </Button>
+                </div>
+              </Card>
+
               {/* AI Generate Button */}
               <Card className="p-6 bg-gradient-to-r from-blue-50 to-green-50 border-2 border-blue-200">
                 <div className="flex items-center justify-between">

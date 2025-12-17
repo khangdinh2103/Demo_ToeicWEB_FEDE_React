@@ -220,7 +220,6 @@ export default function FlashCardExercise({ cards, selectedWord, onComplete }: F
           // Back: Meaning + Examples
           <div className="space-y-6">
             <div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-3">ấn phẩm</h3>
               <p className="text-xl text-gray-700">{currentCard.mainMeaning}</p>
             </div>
 

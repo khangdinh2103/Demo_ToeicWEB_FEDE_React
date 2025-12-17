@@ -32,6 +32,7 @@ import CourseBuilderPage from './pages/admin/CourseBuilderPage'
 import VocabularySetPracticePage from './pages/VocabularySetPracticePage'
 import VocabularyExercisePage from './pages/VocabularyExercisePage'
 import CreateVocabularySetPage from './pages/CreateVocabularySetPage'
+import PersonalVocabularyPage from './pages/PersonalVocabularyPage'
 import DictationPlayerPage from './pages/DictationPlayerPage'
 import ToeicTestPage from './pages/ToeicTestPage'
 import TestByPartPage from './pages/TestByPartPage'
@@ -67,6 +68,8 @@ function App() {
           <Route path="/practice/vocabulary/:setId/exercises" element={<Layout><VocabularyExercisePage /></Layout>} />
           <Route path="/practice/my-vocabulary/:setId/exercises" element={<Layout><VocabularyExercisePage /></Layout>} />
           <Route path="/practice/create-vocabulary" element={<Layout><CreateVocabularySetPage /></Layout>} />
+          <Route path="/practice/personal-vocabulary" element={<Layout><PersonalVocabularyPage /></Layout>} />
+          <Route path="/practice/vocabulary/personal/exercises" element={<Layout><VocabularyExercisePage /></Layout>} />
           <Route path="/practice/dictation/:dictationId" element={<DictationPlayerPage />} />
           
           {/* Test pages - No Layout (full screen) */}

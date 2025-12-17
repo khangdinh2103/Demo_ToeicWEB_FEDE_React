@@ -12,6 +12,7 @@ import { BookOpen, Phone, Lock, Eye, EyeOff, Loader2, XCircle } from "lucide-rea
 import { Link } from "react-router-dom"
 import { authApi } from "@/api/authApi"
 import { useAuth } from "@/contexts/AuthContext"
+import SessionExpiredModal from "@/components/SessionExpiredModal"
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -234,6 +235,9 @@ export default function LoginPage() {
           của chúng tôi.
         </p>
       </div>
+      
+      {/* Session Expired Modal */}
+      <SessionExpiredModal />
     </div>
   )
 }

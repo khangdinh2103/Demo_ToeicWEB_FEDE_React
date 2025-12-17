@@ -20,13 +20,18 @@ export interface FlashCard {
 
 export interface VocabularySet {
   _id: string;
-  course_id: string;
-  title: string;
-  part_of_speech: 'noun' | 'verb' | 'adjective' | 'adverb';
-  day_number: number;
+  course_id?: string;
+  title?: string;
+  name?: string; // For personal vocabulary
+  description?: string; // For personal vocabulary
+  part_of_speech?: 'noun' | 'verb' | 'adjective' | 'adverb';
+  day_number?: number;
   // Detail endpoint returns cards; list endpoint returns total_cards
   cards?: FlashCard[];
   total_cards?: number;
+  total_words?: number; // For personal vocabulary
+  created_by?: string;
+  is_public?: boolean;
 }
 
 export interface PronunciationResult {

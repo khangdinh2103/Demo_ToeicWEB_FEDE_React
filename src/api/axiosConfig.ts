@@ -35,9 +35,18 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized
-      localStorage.removeItem('accessToken');
-      window.location.href = '/login';
+      const errorMessage = error.response?.data?.message || '';
+      
+      // Check if session was kicked out by another device
+      if (errorMessage === 'SESSION_EXPIRED') {
+        localStorage.removeItem('accessToken');
+        localStorage.setItem('session_expired_reason', 'other_device');
+        window.location.href = '/login';
+      } else {
+        // Regular unauthorized
+        localStorage.removeItem('accessToken');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

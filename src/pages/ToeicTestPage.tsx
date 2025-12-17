@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { testApi, type Question, type TestAttempt } from "@/api/testApi"
 import AudioPlayer from "@/components/AudioPlayer"
+import AddWordToVocabularyButton from "@/components/vocabulary/AddWordToVocabularyButton"
 
 export default function ToeicTestPage() {
   const { testId } = useParams()
@@ -485,6 +486,14 @@ export default function ToeicTestPage() {
                 <Flag className="h-4 w-4 mr-2" />
                 Nộp bài
               </Button>
+
+              {/* Add to Personal Vocabulary */}
+              <AddWordToVocabularyButton
+                sourceId={testId}
+                sourceType="Test"
+                variant="outline"
+                size="sm"
+              />
 
               {/* Toggle Panel */}
               <Button
